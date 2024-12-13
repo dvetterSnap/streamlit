@@ -24,10 +24,10 @@ st.title(title)
 
 st.markdown(
     """  
-    ### This is a CRM and SQL Agent demo that allows employees to interact with Production Systems using Natural Language
-    Examples 
+    ### This is a CRM Agent that allows employees to interact with Production Systems using Natural Language
+    Example Questions
     - What accounts are in New York?
-    - What’s the cost per response for our most expensive campaign?
+    - What campaigns are completed and what were their performance metrics? Include names 
     - What are my 3 top opportunities? Please include information about the respective account
  """
 )
@@ -66,7 +66,7 @@ if prompt:
                 response = result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**" + "\n\n"
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):
-                    typewriter(text=response, speed=10)
+                    typewriter(text=response, speed=50)
                 # Add assistant response to chat history
                 st.session_state.CRM_SQL_messages.append({"role": "assistant", "content": response})
             else:
