@@ -28,7 +28,7 @@ st.markdown(
     Examples 
     - What accounts are in New York?
     - What’s the cost per response for our most expensive campaign?
-    - How did the Re:Invent campaign impact opportunities and market share?
+    - What are my 3 top opportunities? Please include information about the respective account
  """
 )
 
