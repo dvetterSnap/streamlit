@@ -5,7 +5,7 @@ import os
 
 # Load environment variables using os
 URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://prod-sedemo-cloud-fm.snaplogic.io/api/1/rest/feed-master/queue/SEDemo/Dylan/CRM_Agent/Main%20-%20CRM%20Agent%20Task")
-BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "P9tC69OFUJYFIXTWtBz77WOoVbE2cAHc")
+BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "P9tC69OFUJYFIXTWtBz77WOoVbE2cAHcd")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
 page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
 title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
