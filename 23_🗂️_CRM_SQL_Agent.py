@@ -7,12 +7,12 @@ from dotenv import dotenv_values
 # Load environment
 env = dotenv_values(".env")
 # SnapLogic RAG pipeline
-URL = env["SL_CRM_SQL_TASK_URL"]
-BEARER_TOKEN = env["SL_CRM_SQL_TASK_TOKEN"]
-timeout = int(env["SL_TASK_TIMEOUT"])
+URL = env["https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/CRM_Agent/CRM_Ultra"]
+BEARER_TOKEN = env["12345"]
+timeout = int(env["1000"])
 # Streamlit Page Properties
-page_title=env["CRM_SQL_PAGE_TITLE"]
-title=env["CRM_SQL_TITLE"]
+page_title=env["CRM Agent"]
+title=env["CRM Agent"]
 
 
 def typewriter(text: str, speed: int):
