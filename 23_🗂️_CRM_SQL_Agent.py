@@ -1,20 +1,16 @@
 import streamlit as st
 import requests
 import time
-from dotenv import dotenv_values
+import os
 
+# Load environment variables using os
+URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/CRM_Agent/CRM_Ultra")
+BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "12345")
+timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
+page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
+title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
 
-# Load environment
-env = dotenv_values(".env")
-# SnapLogic RAG pipeline
-URL = env["https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/CRM_Agent/CRM_Ultra"]
-BEARER_TOKEN = env["12345"]
-timeout = int(env["1000"])
 # Streamlit Page Properties
-page_title=env["CRM Agent"]
-title=env["CRM Agent"]
-
-
 def typewriter(text: str, speed: int):
     tokens = text.split()
     container = st.empty()
@@ -30,10 +26,11 @@ st.markdown(
     """  
     ### This is a CRM and SQL Agent demo that allows employees to interact with Production Systems using Natural Language
     Examples 
-    - What accounts are in New york?
+    - What accounts are in New York?
     - What’s the cost per response for our most expensive campaign?
     - How did the Re:Invent campaign impact opportunities and market share?
- """)
+ """
+)
 
 # Initialize chat history
 if "CRM_SQL_messages" not in st.session_state:
@@ -63,12 +60,10 @@ if prompt:
             verify=False
         )
 
-        if response.status_code==200:
+        if response.status_code == 200:
             result = response.json()
-            # with st.chat_message("assistant"):
-            #     st.markdown(result)
             if 'choices' in result:
-                response=result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**" + "\n\n"
+                response = result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**" + "\n\n"
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):
                     typewriter(text=response, speed=10)
