@@ -26,7 +26,7 @@ st.markdown(
     """  
     ### This is a CRM Agent that allows employees to interact with Production Systems using Natural Language
     Example Questions
-    - What accounts are in New York?
+    - What accounts are in New York??
     - What campaigns are completed and what were their performance metrics? Include names 
     - What are my 3 top opportunities? Please include information about the respective account
  """
