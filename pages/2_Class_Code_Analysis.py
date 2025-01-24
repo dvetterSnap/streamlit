@@ -7,8 +7,8 @@ import os
 URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/CRM_Agent/CRM_Ultra")
 BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "12345")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
-title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
+page_title = os.getenv("CRM_SQL_PAGE_TITLE", "Class Analysis")
+title = os.getenv("CRM_SQL_TITLE", "Class Analysis")
 
 # Streamlit Page Properties
 def typewriter(text: str, speed: int):
