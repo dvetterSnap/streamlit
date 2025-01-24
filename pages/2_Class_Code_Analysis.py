@@ -4,11 +4,11 @@ import time
 import os
 
 # Load environment variables using os
-URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://url.com")
-BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "12345")
+URL = os.getenv("SL_CLASS_CODE_TASK_URL", "https://url.com")
+BEARER_TOKEN = os.getenv("SL_CLASS_CODE_TASK_TOKEN", "12345")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("CRM_SQL_PAGE_TITLE", "Class Analysis")
-title = os.getenv("CRM_SQL_TITLE", "Class Analysis")
+page_title = os.getenv("CLASS_CODE_PAGE_TITLE", "Class Analysis")
+title = os.getenv("CLASS_CODE_TITLE", "Class Analysis")
 
 # Streamlit Page Properties
 def typewriter(text: str, speed: int):
@@ -31,11 +31,11 @@ st.markdown(
 )
 
 # Initialize chat history
-if "CRM_SQL_messages" not in st.session_state:
-    st.session_state.CRM_SQL_messages = []
+if "CLASS_CODE_messages" not in st.session_state:
+    st.session_state.CLASS_CODE_messages = []
 
 # Display chat messages from history on app rerun
-for message in st.session_state.CRM_SQL_messages:
+for message in st.session_state.CLASS_CODE_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
@@ -44,7 +44,7 @@ prompt = st.chat_input("Ask me anything")
 if prompt:
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
-    st.session_state.CRM_SQL_messages.append({"role": "user", "content": prompt})
+    st.session_state.CLASS_CODE_messages.append({"role": "user", "content": prompt})
     with st.spinner("Working..."):
         data = {"prompt": prompt}
         headers = {
@@ -66,7 +66,7 @@ if prompt:
                 with st.chat_message("assistant"):
                     typewriter(text=response, speed=35)
                 # Add assistant response to chat history
-                st.session_state.CRM_SQL_messages.append({"role": "assistant", "content": response})
+                st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": response})
             else:
                 with st.chat_message("assistant"):
                     st.error(f"❌ Error in the SnapLogic API response")
