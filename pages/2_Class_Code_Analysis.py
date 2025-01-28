@@ -63,36 +63,12 @@ if prompt:
         if response.status_code == 200:
             result = response.json()
             if 'choices' in result:
-                response_content = result['choices'][0]['message']['content']
-                
-                # Format the response to make it readable with bullet points and proper spacing
-                formatted_response = f"""
-**Company Name**: {result['Company_Name']}
-**NAICS Code**: {result['NAICS Code']} - {result['NAICS Code Name']}
-**Eligibility**: {result['Eligibility']}
-**Confidence Score**: {result['Confidence Score']}
-**Reason for Assignment**: {result['Reason for Assignment']}
-**Reason for Confidence Score**: {result['Reason for Confidence Score']}
-
-### Alternate Codes:
-"""
-                # Loop through alternate codes and format them
-                for key, value in result['Alternate Codes'].items():
-                    formatted_response += f"""
-- **Company Name**: {value['Company_Name']}
-- **NAICS Code**: {value['NAICS Code']} - {value['NAICS Code Name']}
-- **Eligibility**: {value['Eligibility']}
-- **Confidence Score**: {value['Confidence Score']}
-- **Reason for Assignment**: {value['Reason for Assignment']}
-- **Reason for Confidence Score**: {value['Reason for Confidence Score']}
-"""
-                
-                # Display formatted response with typewriter effect
+                response = result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**" + "\n"
+                # Display assistant response in chat message container
                 with st.chat_message("assistant"):
-                    typewriter(text=formatted_response, speed=35)
-                
+                    typewriter(text=response, speed=35)
                 # Add assistant response to chat history
-                st.session_state.Class_Code_messages.append({"role": "assistant", "content": formatted_response})
+                st.session_state.Class_Code_messages.append({"role": "assistant", "content": response})
             else:
                 with st.chat_message("assistant"):
                     st.error(f"❌ Error in the SnapLogic API response")
