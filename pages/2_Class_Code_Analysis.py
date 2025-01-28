@@ -69,9 +69,9 @@ if prompt:
             st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": f"Error: {str(e)}"})
             st.rerun()
 
-        # Log and display the full API response directly
+        # Display the raw API response as formatted JSON
         with st.chat_message("assistant"):
-            st.write(f"Raw API response: {response.text}")
-        st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": f"Raw response: {response.text}"})
+            st.json(response.json())  # Display JSON in a pretty format
+        st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Raw response displayed."})
 
         st.rerun()
