@@ -12,12 +12,13 @@ title = os.getenv("CLASS_CODE_TITLE", "Class Analysis")
 
 # Streamlit Page Properties
 def typewriter(text: str, speed: int):
-    tokens = text.split()
-    container = st.empty()
-    for index in range(len(tokens) + 1):
-        curr_full_text = " ".join(tokens[:index])
-        container.markdown(curr_full_text)
-        time.sleep(1 / speed)
+    if text:  # Ensure text is not None or empty
+        tokens = text.split()
+        container = st.empty()
+        for index in range(len(tokens) + 1):
+            curr_full_text = " ".join(tokens[:index])
+            container.markdown(curr_full_text)
+            time.sleep(1 / speed)
 
 st.set_page_config(page_title=page_title)
 st.title(title)
@@ -72,11 +73,17 @@ if prompt:
             result = response.json()
             if 'choices' in result:
                 content = result['choices'][0]['message']['content']
-                # Display assistant response with typewriter effect
-                with st.chat_message("assistant"):
-                    typewriter(text=content, speed=35)
-                # Add assistant response to chat history
-                st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": content})
+                # Ensure content is a string before passing it to typewriter
+                if isinstance(content, str):
+                    # Display assistant response with typewriter effect
+                    with st.chat_message("assistant"):
+                        typewriter(text=content, speed=35)
+                    # Add assistant response to chat history
+                    st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": content})
+                else:
+                    with st.chat_message("assistant"):
+                        st.error("❌ The content returned from the API is not a valid string.")
+                    st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: Invalid response format."})
             else:
                 with st.chat_message("assistant"):
                     st.error("❌ No valid response found in the SnapLogic API response.")
