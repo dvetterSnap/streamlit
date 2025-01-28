@@ -74,11 +74,9 @@ if prompt:
         st.write(f"Full API response headers: {response.headers}")  # Log the headers
         st.write(f"Full API response content: {response.text}")  # Log the raw response content
 
-        # Check if the response contains valid JSON and handle potential errors
         if response.status_code == 200:
             try:
                 result = response.json()
-                # Log parsed JSON response
                 st.write(f"Parsed JSON response: {result}")
 
                 # Check if 'choices' exist and process the response accordingly
@@ -93,12 +91,12 @@ if prompt:
                         st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": content})
                     else:
                         with st.chat_message("assistant"):
-                            st.error("❌ The content returned from the API is not a valid string or is missing.")
-                        st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: Invalid content format."})
+                            st.error(f"❌ The content returned is not a valid string: {content}")
+                        st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": f"Error: Invalid content format - {content}"})
                 else:
                     with st.chat_message("assistant"):
-                        st.error("❌ 'choices' field is missing or empty in the API response.")
-                    st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: Missing or empty 'choices' field."})
+                        st.error("❌ The 'choices' field is missing or empty in the API response.")
+                    st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: 'choices' field missing or empty."})
             except ValueError as e:
                 with st.chat_message("assistant"):
                     st.error(f"❌ Error parsing JSON response: {e}")
