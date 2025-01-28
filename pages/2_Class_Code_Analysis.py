@@ -69,8 +69,13 @@ if prompt:
             st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": f"Error: {str(e)}"})
             st.rerun()
 
+        # Check the API response
         if response.status_code == 200:
             result = response.json()
+
+            # Display the full response for debugging
+            st.write(f"Full API response: {result}")  # Add this line to display the entire response
+
             if 'choices' in result:
                 content = result['choices'][0]['message']['content']
                 # Ensure content is a string before passing it to typewriter
