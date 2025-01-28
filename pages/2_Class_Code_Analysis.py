@@ -7,8 +7,8 @@ import os
 URL = os.getenv("SL_Class_Code_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/00_Embroker_Underwriting/output%20Task")
 BEARER_TOKEN = os.getenv("SL_Class_Code_TASK_TOKEN", "12345")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("Class_Code_PAGE_TITLE", "CRM Agent")
-title = os.getenv("Class_Code_TITLE", "CRM Agent")
+page_title = os.getenv("Class_Code_PAGE_TITLE", "Class Code Recommendation Agent")
+title = os.getenv("Class_Code_TITLE", "Class Code Recommendation Agent")
 
 # Streamlit Page Properties
 def typewriter(text: str, speed: int):
