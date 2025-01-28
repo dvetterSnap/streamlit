@@ -69,19 +69,21 @@ if prompt:
             st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": f"Error: {str(e)}"})
             st.rerun()
 
-        # Log and debug the full response
+        # Log the raw response for debugging
         st.write(f"Full API response status: {response.status_code}")  # Log the HTTP status code
         st.write(f"Full API response headers: {response.headers}")  # Log the headers
         st.write(f"Full API response content: {response.text}")  # Log the raw response content
 
+        # Check if the response contains valid JSON and handle potential errors
         if response.status_code == 200:
             try:
                 result = response.json()
                 # Log parsed JSON response
                 st.write(f"Parsed JSON response: {result}")
 
-                if 'choices' in result:
-                    content = result['choices'][0]['message']['content']
+                # Check if 'choices' exist and process the response accordingly
+                if 'choices' in result and isinstance(result['choices'], list) and len(result['choices']) > 0:
+                    content = result['choices'][0].get('message', {}).get('content', None)
                     # Ensure content is a string before passing it to typewriter
                     if isinstance(content, str):
                         # Display assistant response with typewriter effect
@@ -91,12 +93,12 @@ if prompt:
                         st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": content})
                     else:
                         with st.chat_message("assistant"):
-                            st.error("❌ The content returned from the API is not a valid string.")
-                        st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: Invalid response format."})
+                            st.error("❌ The content returned from the API is not a valid string or is missing.")
+                        st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: Invalid content format."})
                 else:
                     with st.chat_message("assistant"):
-                        st.error("❌ No valid response found in the SnapLogic API response.")
-                    st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: No valid response found."})
+                        st.error("❌ 'choices' field is missing or empty in the API response.")
+                    st.session_state.CLASS_CODE_messages.append({"role": "assistant", "content": "Error: Missing or empty 'choices' field."})
             except ValueError as e:
                 with st.chat_message("assistant"):
                     st.error(f"❌ Error parsing JSON response: {e}")
