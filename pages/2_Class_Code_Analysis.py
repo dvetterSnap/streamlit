@@ -63,7 +63,7 @@ if prompt:
         if response.status_code == 200:
             result = response.json()
             if 'choices' in result:
-                response = result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**" + "\n\n"
+                response = result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**" + "\n"
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):
                     typewriter(text=response, speed=35)
