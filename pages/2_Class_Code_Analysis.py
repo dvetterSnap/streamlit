@@ -46,7 +46,7 @@ prompt = st.chat_input("Ask me anything")
 if prompt:
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
-    st.session_state.Class_CodeL_messages.append({"role": "user", "content": prompt})
+    st.session_state.Class_Code_messages.append({"role": "user", "content": prompt})
     with st.spinner("Working..."):
         data = {"prompt": prompt}
         headers = {
@@ -68,7 +68,7 @@ if prompt:
                 with st.chat_message("assistant"):
                     typewriter(text=response, speed=35)
                 # Add assistant response to chat history
-                st.session_state.CRM_SQL_messages.append({"role": "assistant", "content": response})
+                st.session_state.Class_Code_messages.append({"role": "assistant", "content": response})
             else:
                 with st.chat_message("assistant"):
                     st.error(f"❌ Error in the SnapLogic API response")
