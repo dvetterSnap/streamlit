@@ -4,11 +4,11 @@ import time
 import os
 
 # Load environment variables using os
-URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/00_Embroker_Underwriting/output%20Task")
-BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "12345")
+URL = os.getenv("SL_Class_Code_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/00_Embroker_Underwriting/output%20Task")
+BEARER_TOKEN = os.getenv("SL_Class_Code_TASK_TOKEN", "12345")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
-title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
+page_title = os.getenv("Class_Code_PAGE_TITLE", "CRM Agent")
+title = os.getenv("Class_Code_TITLE", "CRM Agent")
 
 # Streamlit Page Properties
 def typewriter(text: str, speed: int):
@@ -33,11 +33,11 @@ st.markdown(
 )
 
 # Initialize chat history
-if "CRM_SQL_messages" not in st.session_state:
-    st.session_state.CRM_SQL_messages = []
+if "Class_Code_messages" not in st.session_state:
+    st.session_state.Class_Code_messages = []
 
 # Display chat messages from history on app rerun
-for message in st.session_state.CRM_SQL_messages:
+for message in st.session_state.Class_Code_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
@@ -46,7 +46,7 @@ prompt = st.chat_input("Ask me anything")
 if prompt:
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
-    st.session_state.CRM_SQL_messages.append({"role": "user", "content": prompt})
+    st.session_state.Class_CodeL_messages.append({"role": "user", "content": prompt})
     with st.spinner("Working..."):
         data = {"prompt": prompt}
         headers = {
