@@ -24,11 +24,10 @@ st.title(title)
 
 st.markdown(
     """  
-    ### This is a CRM Agent that allows employees to interact with Production Systems using Natural Language
-    Example Questions
-    - What accounts are in New York?
-    - What campaigns are completed and what were their performance metrics? Include names 
-    - What are my 3 top opportunities? Please include information about the respective account
+    ### This is a Class Code Recommednaton Agent that allows employees submit a file to be introspected for a class code predicition 
+    Example input
+    - Datashapes.pdf
+    - gdrive/{filename}
  """
 )
 
