@@ -4,7 +4,7 @@ import time
 import os
 
 # Load environment variables using os
-URL = os.getenv("SL_CLASS_CODE_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/00_Embroker_Underwriting/output%20Task")
+URL = os.getenv("SL_CLASS_CODE_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/00_Embroker_Underwriting/output%20Task")
 BEARER_TOKEN = os.getenv("SL_CLASS_CODE_TASK_TOKEN", "12345")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
 page_title = os.getenv("CLASS_CODE_PAGE_TITLE", "Class Analysis")
