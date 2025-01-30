@@ -29,8 +29,6 @@ st.markdown(
     """  
     ### This is a Class Code Recommendation Agent that allows employees to submit a file for class code prediction.
 
-    Example input:
-    - gdrive/Datashapes.pdf
  """
 )
 
@@ -54,13 +52,13 @@ col1, col2 = st.columns(2)
 
 # Button to suggest first input
 with col1:
-    if st.button("Suggest: gdrive/Applications/Datashapes.pdf"):
+    if st.button("gdrive/Applications/Datashapes.pdf"):
         prompt = "gdrive/Applications/Datashapes.pdf"
 
 # Button to suggest second input
 with col2:
-    if st.button("Suggest: C:\\Users\\Documents\\Datashapes.pdf"):
-        prompt = r"C:\Users\Documents\Datashapes.pdf"
+    if st.button("C://Users/Documents/Datashapes.pdf"):
+        prompt = r"C://Users/Documents/Datashapes.pdf"
 
 if prompt:
     st.chat_message("user").markdown(prompt)
