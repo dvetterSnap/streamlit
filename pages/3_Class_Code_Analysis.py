@@ -47,6 +47,8 @@ for message in st.session_state.Class_Code_messages:
 
 # React to user input
 
+
+prompt = st.chat_input("Ask me anything")
 # Create two columns for the suggestion buttons to appear side by side
 col1, col2 = st.columns(2)
 
@@ -60,7 +62,6 @@ with col2:
     if st.button("C://Users/Documents/Datashapes.pdf"):
         prompt = r"C://Users/Documents/Datashapes.pdf"
         
-prompt = st.chat_input("Ask me anything")
 if prompt:
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
