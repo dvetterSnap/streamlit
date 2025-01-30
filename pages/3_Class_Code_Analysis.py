@@ -47,24 +47,20 @@ for message in st.session_state.Class_Code_messages:
 # React to user input
 prompt = st.chat_input("Ask me anything")
 
-# Create two columns for the suggestion buttons to appear side by side
-col1, col2 = st.columns(2)
-
-# Button to suggest first input
-with col1:
-    if st.button("gdrive/Applications/Datashapes.pdf"):
-        prompt = "gdrive/Applications/Datashapes.pdf"
-
-# Button to suggest second input
-with col2:
-    if st.button("C://Users/Documents/Datashapes.pdf"):
-        prompt = r"C://Users/Documents/Datashapes.pdf"
-
-# Show the spinner and process response after prompt is filled
+# Add buttons directly below the input field (no floating)
 if prompt:
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
     st.session_state.Class_Code_messages.append({"role": "user", "content": prompt})
+    
+    # Button to suggest first input
+    if st.button("gdrive/Applications/Datashapes.pdf"):
+        prompt = "gdrive/Applications/Datashapes.pdf"
+    
+    # Button to suggest second input
+    if st.button("C://Users/Documents/Datashapes.pdf"):
+        prompt = r"C://Users/Documents/Datashapes.pdf"
+    
     with st.spinner("Working..."):
         data = {"prompt": prompt}
         headers = {
