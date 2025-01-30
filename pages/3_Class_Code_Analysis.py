@@ -29,6 +29,11 @@ st.markdown(
     """  
     ### This is a Class Code Recommendation Agent that allows employees to submit a file for class code prediction.
 
+
+
+
+
+
  """
 )
 
@@ -39,20 +44,20 @@ st.markdown("<br><br>", unsafe_allow_html=True)
 if "Class_Code_messages" not in st.session_state:
     st.session_state.Class_Code_messages = []
 
-# Display chat messages from history on app rerun, display assistant responses before input box
+# Display chat messages from history on app rerun
 for message in st.session_state.Class_Code_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # React to user input
-prompt = st.chat_input("Ask me anything")
+prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf)")
 
-# Buttons are now outside the prompt check, so they are always displayed
+# Create two columns for the suggestion buttons to appear side by side
 col1, col2 = st.columns(2)
 
 # Button to suggest first input
 with col1:
-    if st.button("gdrive/Applications/Datashapes.pdf"):
+    if st.button("Suggest: gdrive/Applications/Datashapes.pdf"):
         prompt = "gdrive/Applications/Datashapes.pdf"
 
 # Button to suggest second input
