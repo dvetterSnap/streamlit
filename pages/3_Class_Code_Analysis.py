@@ -44,7 +44,7 @@ for message in st.session_state.Class_Code_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# React to user input and show loading spinner before text input
+# React to user input
 prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf)")
 
 # Create two columns for the suggestion buttons to appear side by side
@@ -60,13 +60,14 @@ with col2:
     if st.button("C://Users/Documents/Datashapes.pdf"):
         prompt = r"C://Users/Documents/Datashapes.pdf"
 
-# If prompt is provided, display the response above the input box
+# Show spinner above the input box while processing the request
 if prompt:
+    # Add spinner above input box
     with st.spinner("Working..."):
         st.chat_message("user").markdown(prompt)
         # Add user message to chat history
         st.session_state.Class_Code_messages.append({"role": "user", "content": prompt})
-        
+
         data = {"prompt": prompt}
         headers = {
             'Authorization': f'Bearer {BEARER_TOKEN}'
@@ -95,6 +96,4 @@ if prompt:
         else:
             with st.chat_message("assistant"):
                 st.error(f"❌ Error while calling the SnapLogic API")
-
-        # Re-run the app to avoid duplicate processing
         st.rerun()
