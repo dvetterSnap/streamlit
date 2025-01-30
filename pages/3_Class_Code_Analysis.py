@@ -66,7 +66,7 @@ with col1:
 
 # Button to suggest second input
 with col2:
-    if st.button("C://Users/Documents/Datashapes.pdf"):
+    if st.button("C://Users/Documents/CompanyABC_Application_2024.pdf"):
         prompt = r"C://Users/Documents/CompanyABC_Application_2024.pdf"
 
 if prompt:
