@@ -61,8 +61,8 @@ col1, col2 = st.columns(2)
 
 # Button to suggest first input
 with col1:
-    if st.button("gdrive/Applications/Datashapes.pdf"):
-        prompt = "gdrive/Applications/Datashapes.pdf"
+    if st.button("gdrive/FY2025/Datashapes.pdf"):
+        prompt = "gdrive/FY2025/Datashapes.pdf"
 
 # Button to suggest second input
 with col2:
