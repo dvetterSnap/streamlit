@@ -49,7 +49,7 @@ if st.button("gdrive/Applications/Datashapes.pdf"):
 
 # Button to suggest second input
 if st.button("C://Users/Documents/Datashapes.pdf"):
-    prompt = r"C://Users/Documents/Datashapes.pdf"
+    prompt = "C://Users/Documents/Datashapes.pdf"
 
 if prompt:
     st.chat_message("user").markdown(prompt)
