@@ -39,7 +39,7 @@ st.markdown("<br><br>", unsafe_allow_html=True)
 if "Class_Code_messages" not in st.session_state:
     st.session_state.Class_Code_messages = []
 
-# Display chat messages from history on app rerun
+# Display chat messages from history on app rerun, display assistant responses before input box
 for message in st.session_state.Class_Code_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -60,6 +60,7 @@ with col2:
     if st.button("C://Users/Documents/Datashapes.pdf"):
         prompt = r"C://Users/Documents/Datashapes.pdf"
 
+# If prompt is provided, display the response before the input box
 if prompt:
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
