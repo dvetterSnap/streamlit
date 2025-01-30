@@ -67,7 +67,7 @@ with col1:
 # Button to suggest second input
 with col2:
     if st.button("C://Users/Documents/Datashapes.pdf"):
-        prompt = r"C://Users/Documents/Datashapes.pdf"
+        prompt = r"C://Users/Documents/CompanyABC_Application_2024.pdf"
 
 if prompt:
     st.chat_message("user").markdown(prompt)
