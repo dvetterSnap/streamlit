@@ -44,25 +44,24 @@ for message in st.session_state.Class_Code_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-
 # React to user input
-
-
 prompt = st.chat_input("Ask me anything")
-# Create two columns for the suggestion buttons to appear side by side
-col1, col2 = st.columns(2)
 
-# Button to suggest first input
-with col1:
-    if st.button("gdrive/Applications/Datashapes.pdf"):
-        prompt = "gdrive/Applications/Datashapes.pdf"
-
-# Button to suggest second input
-with col2:
-    if st.button("C://Users/Documents/Datashapes.pdf"):
-        prompt = r"C://Users/Documents/Datashapes.pdf"
-        
+# Move the button logic after the text input field
 if prompt:
+    # Create two columns for the suggestion buttons to appear side by side
+    col1, col2 = st.columns(2)
+
+    # Button to suggest first input
+    with col1:
+        if st.button("gdrive/Applications/Datashapes.pdf"):
+            prompt = "gdrive/Applications/Datashapes.pdf"
+
+    # Button to suggest second input
+    with col2:
+        if st.button("C://Users/Documents/Datashapes.pdf"):
+            prompt = r"C://Users/Documents/Datashapes.pdf"
+    
     st.chat_message("user").markdown(prompt)
     # Add user message to chat history
     st.session_state.Class_Code_messages.append({"role": "user", "content": prompt})
@@ -96,4 +95,3 @@ if prompt:
             with st.chat_message("assistant"):
                 st.error(f"❌ Error while calling the SnapLogic API")
         st.rerun()
-
