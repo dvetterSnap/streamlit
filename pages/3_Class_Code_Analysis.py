@@ -41,11 +41,15 @@ for message in st.session_state.Class_Code_messages:
         st.markdown(message["content"])
 
 # React to user input
-prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf, C:\\Users\\Documents\\Datashapes.pdf):")
+prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf)")
 
-# Button to suggest input
-if st.button("gdrive/Datashapes.pdf"):
+# Button to suggest first input
+if st.button("Suggest: gdrive/Applications/Datashapes.pdf"):
     prompt = "gdrive/Applications/Datashapes.pdf"
+
+# Button to suggest second input
+if st.button("Suggest: C://Users/Documents/Datashapes.pdf"):
+    prompt = r"C://Users/Documents/Datashapes.pdf"
 
 if prompt:
     st.chat_message("user").markdown(prompt)
