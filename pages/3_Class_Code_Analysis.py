@@ -41,7 +41,7 @@ for message in st.session_state.Class_Code_messages:
         st.markdown(message["content"])
 
 # React to user input
-prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf, C:\Users\Documents\Datashapes.pdf):")
+prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf, C:\\Users\\Documents\\Datashapes.pdf):")
 
 # Button to suggest input
 if st.button("gdrive/Datashapes.pdf"):
