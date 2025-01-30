@@ -22,14 +22,20 @@ def typewriter(text: str, speed: int):
 st.set_page_config(page_title=page_title)
 st.title(title)
 
+# Add space between the title and the rest of the content
+st.markdown("<br>", unsafe_allow_html=True)
+
 st.markdown(
     """  
     ### This is a Class Code Recommendation Agent that allows employees to submit a file for class code prediction.
 
     Example input:
-    - [gdrive/Datashapes.pdf](https://your-google-drive-link)
+    - gdrive/Datashapes.pdf
  """
 )
+
+# Add space between the description and the input box
+st.markdown("<br><br>", unsafe_allow_html=True)
 
 # Initialize chat history
 if "Class_Code_messages" not in st.session_state:
@@ -43,13 +49,18 @@ for message in st.session_state.Class_Code_messages:
 # React to user input
 prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf)")
 
+# Create two columns for the suggestion buttons to appear side by side
+col1, col2 = st.columns(2)
+
 # Button to suggest first input
-if st.button("gdrive/Applications/Datashapes.pdf"):
-    prompt = "gdrive/Applications/Datashapes.pdf"
+with col1:
+    if st.button("Suggest: gdrive/Applications/Datashapes.pdf"):
+        prompt = "gdrive/Applications/Datashapes.pdf"
 
 # Button to suggest second input
-if st.button("C://Users/Documents/Datashapes.pdf"):
-    prompt = "C://Users/Documents/Datashapes.pdf"
+with col2:
+    if st.button("Suggest: C:\\Users\\Documents\\Datashapes.pdf"):
+        prompt = r"C:\Users\Documents\Datashapes.pdf"
 
 if prompt:
     st.chat_message("user").markdown(prompt)
