@@ -54,7 +54,7 @@ for message in st.session_state.Class_Code_messages:
         st.markdown(message["content"])
 
 # React to user input
-prompt = st.text_input("Enter the file name (e.g., gdrive/Applications/Datashapes.pdf)")
+prompt = st.text_input("Enter the file name")
 
 # Create two columns for the suggestion buttons to appear side by side
 col1, col2 = st.columns(2)
