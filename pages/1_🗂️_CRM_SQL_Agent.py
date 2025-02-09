@@ -29,6 +29,7 @@ st.markdown(
     - What accounts are in New York?
     - What campaigns are completed and what were their performance metrics? Include names 
     - What are my 3 top opportunities? Please include information about the respective account
+    - What is the names of the opportunities are sourced from partners and what the total amount?
  """
 )
 
