@@ -48,7 +48,7 @@ prompt = st.chat_input("Ask me anything")
 if prompt:
     # Show user message
     st.chat_message("user").markdown(prompt)
-    st.session_state.CRM_SQL_messages.append({"role": "user", "content": prompt})
+    st.session_state.CRM_SQL_messages.append({"role": "USER", "content": prompt})
 
     with st.spinner("Working..."):
         # Send full message history as array
