@@ -46,15 +46,17 @@ for message in st.session_state.CRM_SQL_messages:
 # Handle input
 prompt = st.chat_input("Ask me anything")
 if prompt:
-    # Show user message
     st.chat_message("user").markdown(prompt)
     st.session_state.CRM_SQL_messages.append({"role": "USER", "content": prompt})
 
-    with st.spinner("Working..."):
-        # Send full message history as array
-        data = {
-            "messages": st.session_state.CRM_SQL_messages
+    # Actual array being sent, no stringification or encoding
+    data = {
+        "original": {
+            "UserMessages": st.session_state.CRM_SQL_messages
         }
+    }
+
+    with st.spinner("Working..."):
         headers = {
             'Authorization': f'Bearer {BEARER_TOKEN}'
         }
@@ -76,9 +78,10 @@ if prompt:
             else:
                 with st.chat_message("assistant"):
                     st.error("❌ SnapLogic API response did not contain 'choices'")
+                    st.error(result)
         else:
             with st.chat_message("assistant"):
                 st.error(f"❌ SnapLogic API returned error: {response.status_code}")
-    
-    # Rerun to render full thread
+                st.error(response.text)
+
     st.rerun()
