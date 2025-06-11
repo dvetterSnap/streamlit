@@ -8,8 +8,8 @@ import json
 URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/Intuit/Snowflake%20Agent%20Task")
 BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "1234")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
-title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
+page_title = os.getenv("CRM_SQL_PAGE_TITLE", "Intuit Snowflake Agent")
+title = os.getenv("CRM_SQL_TITLE", "Intuit Snowflake Agent")
 
 def typewriter(text: str, speed: int):
     tokens = text.split()
@@ -24,12 +24,11 @@ st.title(title)
 
 st.markdown(
     """  
-    ### This is a CRM Agent that allows employees to interact with Production Systems using Natural Language
+    ### This is a Snowflake Agent that allows Intuit users to gather information using Natural Language
     Example Questions
-    - What accounts are in New York?
+    - Show me opportunities with amount over 500000 with their related account details.
     - What campaigns are completed and what were their performance metrics? Include names 
-    - What are my 3 top opportunities? Please include information about the respective account
-    - What is the names of the opportunities are sourced from partners and what the total amount?
+    - How many tax payers missed the deadline in 2024?
     """
 )
 
