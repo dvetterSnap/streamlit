@@ -1,78 +1,53 @@
 import streamlit as st
 import requests
-import time
 import os
-import pandas as pd
 
-# Load environment variables using os
+# Load environment variables
 URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/Intuit/Snowflake%20Agent%20Task")
 BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "1234")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
 page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
 title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
 
-# Streamlit Page Properties
+# Page config
 st.set_page_config(page_title=page_title)
 st.title(title)
 
 st.markdown(
     """  
-    ### This is a CRM Agent that allows employees to interact with Production Systems using Natural Language
-    Example Questions
+    ### Ask a question about CRM data
+    Example Questions:
     - What accounts are in New York?
-    - What campaigns are completed and what were their performance metrics? Include names 
-    - What are my 3 top opportunities? Please include information about the respective account
-    - What is the names of the opportunities are sourced from partners and what the total amount?
+    - What are my 3 top opportunities?
+    - What campaigns are completed?
     """
 )
 
-# Initialize chat history
-if "CRM_SQL_messages" not in st.session_state:
-    st.session_state.CRM_SQL_messages = []
+# Input
+prompt = st.text_input("Ask a question")
 
-# Display chat messages from history on app rerun
-for message in st.session_state.CRM_SQL_messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# React to user input
-prompt = st.chat_input("Ask me anything")
+# Submit & show response
 if prompt:
-    st.chat_message("user").markdown(prompt)
-    st.session_state.CRM_SQL_messages.append({"role": "user", "content": prompt})
-
-    with st.spinner("Working..."):
+    with st.spinner("Thinking..."):
         data = {"prompt": prompt}
         headers = {
             'Authorization': f'Bearer {BEARER_TOKEN}',
             'Content-Type': 'application/json'
         }
 
-        response = requests.post(
-            url=URL,
-            json=data,  # ✅ Send as proper JSON
-            headers=headers,
-            timeout=timeout,
-            verify=False
-        )
+        try:
+            response = requests.post(
+                url=URL,
+                json=data,
+                headers=headers,
+                timeout=timeout,
+                verify=False
+            )
 
-        if response.status_code == 200:
-            result = response.json()
-
-            if 'result' in result and isinstance(result['result'], list):
-                df = pd.DataFrame(result['result'])
-
-                with st.chat_message("assistant"):
-                    st.dataframe(df)
-
-                st.session_state.CRM_SQL_messages.append({
-                    "role": "assistant",
-                    "content": df.to_markdown(index=False)
-                })
+            if response.status_code == 200:
+                result = response.json()
+                st.text(str(result))
             else:
-                with st.chat_message("assistant"):
-                    st.error("❌ Response did not include a valid 'result' array.")
-        else:
-            with st.chat_message("assistant"):
-                st.error(f"❌ Error calling the SnapLogic API: {response.status_code}")
-        st.rerun()
+                st.error(f"❌ Error from SnapLogic API: {response.status_code}")
+        except Exception as e:
+            st.error(f"❌ Exception occurred: {e}")
