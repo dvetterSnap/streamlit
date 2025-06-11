@@ -24,20 +24,31 @@ st.markdown(
     """
 )
 
-# Initialize session state
+# Session state to store Q&A history
 if "qa_history" not in st.session_state:
     st.session_state.qa_history = []
 
-# Show the Q&A thread
+# Controlled input logic
+if "current_prompt" not in st.session_state:
+    st.session_state.current_prompt = ""
+
+def submit_prompt():
+    st.session_state.submitted_prompt = st.session_state.current_prompt
+    st.session_state.current_prompt = ""  # Clear input after submit
+
+# Text input field
+st.text_input("Ask a question", key="current_prompt", on_change=submit_prompt)
+
+# Display Q&A thread
 for pair in st.session_state.qa_history:
     st.markdown(f"**You:** {pair['question']}")
     st.code(pair["response"], language="json")
 
-# Input
-prompt = st.text_input("Ask a question")
+# Trigger SnapLogic call if a new prompt is submitted
+if "submitted_prompt" in st.session_state:
+    prompt = st.session_state.submitted_prompt
+    del st.session_state.submitted_prompt
 
-# Submit
-if prompt:
     with st.spinner("Thinking..."):
         data = {"prompt": prompt}
         headers = {
@@ -58,13 +69,12 @@ if prompt:
                 result = response.json()
                 pretty_result = json.dumps(result, indent=2)
 
-                # Append to thread
                 st.session_state.qa_history.append({
                     "question": prompt,
                     "response": pretty_result
                 })
 
-                st.rerun()  # rerun to immediately display updated thread
+                st.rerun()
             else:
                 st.error(f"❌ Error from SnapLogic API: {response.status_code}")
         except Exception as e:
