@@ -1,82 +1,66 @@
 import streamlit as st
-from dotenv import dotenv_values
 import requests
-import time
 import os
-import uuid
+import json
 
 # Load environment variables
-URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/CRM_Agent/CRM_Ultra")
-BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "12345")
+URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/Intuit/Snowflake%20Agent%20Task")
+BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "1234")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
 page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
 title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
 
-# Streamlit Page Properties
+# Page config
 st.set_page_config(page_title=page_title)
 st.title(title)
 
-def typewriter(text: str, speed: int):
-    tokens = text.split()
-    container = st.empty()
-    for index in range(len(tokens) + 1):
-        curr_full_text = " ".join(tokens[:index])
-        container.markdown(curr_full_text)
-        time.sleep(1 / speed)
-
-# Description block
 st.markdown(
     """  
-    ### This is a CRM Agent that allows employees to interact with Production Systems using Natural Language
-    Example Questions
+    ### Ask a question about CRM data
+    Example Questions:
     - What accounts are in New York?
-    - What campaigns are completed and what were their performance metrics? Include names 
-    - What are my 3 top opportunities? Please include information about the respective account
-    - What is the names of the opportunities are sourced from partners and what the total amount?
+    - What are my 3 top opportunities?
+    - What campaigns are completed?
     """
 )
 
-# Initialize session state
-if "CRM_SQL_messages" not in st.session_state:
-    st.session_state.CRM_SQL_messages = []
+if "qa_history" not in st.session_state:
+    st.session_state.qa_history = []
 
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())
+if "current_prompt" not in st.session_state:
+    st.session_state.current_prompt = ""
 
-# Display chat history
-for message in st.session_state.CRM_SQL_messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+def submit_prompt():
+    st.session_state.submitted_prompt = st.session_state.current_prompt
+    st.session_state.current_prompt = ""
 
-# Handle user input
-prompt = st.chat_input("Ask me anything")
-if prompt:
-    st.chat_message("user").markdown(prompt)
-    st.session_state.CRM_SQL_messages.append({"role": "user", "content": prompt})
+# Display chat thread first
+for pair in st.session_state.qa_history:
+    with st.chat_message("user"):
+        st.markdown(f"**{pair['question']}**")
+    with st.chat_message("assistant"):
+        st.markdown(pair["response"])
 
-    # Format message history to SnapLogic's expected format
-    sl_messages = [
-        {"sl_role": "user" if msg["role"] == "user" else "assistant", "content": msg["content"]}
-        for msg in st.session_state.CRM_SQL_messages
-    ]
+# Chat input stays at bottom
+st.chat_input("Ask a question", key="current_prompt", on_submit=submit_prompt)
 
-    payload = {
-        "messages": sl_messages,
-        "session_id": st.session_state.session_id,
-        "deployment_id": "end_turn"
-    }
-
-    headers = {
-        'Authorization': f'Bearer {BEARER_TOKEN}',
-        'Content-Type': 'application/json'
-    }
+# Handle submission
+if "submitted_prompt" in st.session_state:
+    prompt = st.session_state.submitted_prompt
+    del st.session_state.submitted_prompt
 
     with st.chat_message("assistant"):
-        with st.spinner("Working..."):
+        with st.spinner("Thinking..."):
+            data = {"prompt": prompt}
+            headers = {
+                'Authorization': f'Bearer {BEARER_TOKEN}',
+                'Content-Type': 'application/json'
+            }
+
             try:
                 response = requests.post(
                     url=URL,
-                    json=payload,
+                    json=data,
                     headers=headers,
                     timeout=timeout,
                     verify=False
@@ -84,19 +68,14 @@ if prompt:
 
                 if response.status_code == 200:
                     result = response.json()
-                    if 'choices' in result:
-                        reply = result['choices'][0]['message']['content'].replace("NEWLINE ", "**") + "**\n\n"
-                    elif 'response' in result:
-                        reply = result['response']
-                    else:
-                        reply = "No response returned from SnapLogic."
-
-                    typewriter(reply, speed=35)
-                    st.session_state.CRM_SQL_messages.append({"role": "assistant", "content": reply})
+                    reply = json.dumps(result, indent=2)
+                    st.session_state.qa_history.append({
+                        "question": prompt,
+                        "response": reply
+                    })
+                    st.rerun()
                 else:
-                    st.error(f"❌ Error while calling the SnapLogic API: {response.status_code}")
+                    st.error(f"❌ Error from SnapLogic API: {response.status_code}")
                     st.error(response.text)
             except Exception as e:
-                st.error(f"❌ Exception occurred: {str(e)}")
-
-    st.rerun()
+                st.error(f"❌ Exception occurred: {e}")
