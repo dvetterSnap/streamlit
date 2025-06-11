@@ -36,46 +36,55 @@ def submit_prompt():
     st.session_state.submitted_prompt = st.session_state.current_prompt
     st.session_state.current_prompt = ""  # Clear input after submit
 
-# Text input field
-st.text_input("Ask a question", key="current_prompt", on_change=submit_prompt)
+# Text input field (chat-style)
+st.chat_input("Ask a question", key="current_prompt", on_submit=submit_prompt)
 
-# Display Q&A thread
+# Display Q&A thread using chat bubbles
 for pair in st.session_state.qa_history:
-    st.markdown(f"**You:** {pair['question']}")
-    st.code(pair["response"], language="json")
+    with st.chat_message("user"):
+        st.markdown(f"**{pair['question']}**")
+    with st.chat_message("assistant"):
+        st.markdown(pair["response"])
 
 # Trigger SnapLogic call if a new prompt is submitted
 if "submitted_prompt" in st.session_state:
     prompt = st.session_state.submitted_prompt
     del st.session_state.submitted_prompt
 
-    with st.spinner("Thinking..."):
-        data = {"prompt": prompt}
-        headers = {
-            'Authorization': f'Bearer {BEARER_TOKEN}',
-            'Content-Type': 'application/json'
-        }
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            data = {"prompt": prompt}
+            headers = {
+                'Authorization': f'Bearer {BEARER_TOKEN}',
+                'Content-Type': 'application/json'
+            }
 
-        try:
-            response = requests.post(
-                url=URL,
-                json=data,
-                headers=headers,
-                timeout=timeout,
-                verify=False
-            )
+            try:
+                response = requests.post(
+                    url=URL,
+                    json=data,
+                    headers=headers,
+                    timeout=timeout,
+                    verify=False
+                )
 
-            if response.status_code == 200:
-                result = response.json()
-                pretty_result = json.dumps(result, indent=2)
+                if response.status_code == 200:
+                    result = response.json()
 
-                st.session_state.qa_history.append({
-                    "question": prompt,
-                    "response": pretty_result
-                })
+                    # Format response cleanly if it's JSON
+                    if isinstance(result, dict) or isinstance(result, list):
+                        reply = json.dumps(result, indent=2)
+                    else:
+                        reply = str(result)
 
-                st.rerun()
-            else:
-                st.error(f"❌ Error from SnapLogic API: {response.status_code}")
-        except Exception as e:
-            st.error(f"❌ Exception occurred: {e}")
+                    st.session_state.qa_history.append({
+                        "question": prompt,
+                        "response": reply
+                    })
+
+                    st.rerun()
+                else:
+                    st.error(f"❌ Error from SnapLogic API: {response.status_code}")
+                    st.error(response.text)
+            except Exception as e:
+                st.error(f"❌ Exception occurred: {e}")
