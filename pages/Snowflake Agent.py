@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import time
 import os
+import pandas as pd
 
 # Load environment variables using os
 URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/Intuit/Snowflake%20Agent%20Task")
@@ -11,14 +12,6 @@ page_title = os.getenv("CRM_SQL_PAGE_TITLE", "CRM Agent")
 title = os.getenv("CRM_SQL_TITLE", "CRM Agent")
 
 # Streamlit Page Properties
-def typewriter(text: str, speed: int):
-    tokens = text.split()
-    container = st.empty()
-    for index in range(len(tokens) + 1):
-        curr_full_text = " ".join(tokens[:index])
-        container.markdown(curr_full_text)
-        time.sleep(1 / speed)
-
 st.set_page_config(page_title=page_title)
 st.title(title)
 
@@ -51,11 +44,13 @@ if prompt:
     with st.spinner("Working..."):
         data = {"prompt": prompt}
         headers = {
-            'Authorization': f'Bearer {BEARER_TOKEN}'
+            'Authorization': f'Bearer {BEARER_TOKEN}',
+            'Content-Type': 'application/json'
         }
+
         response = requests.post(
             url=URL,
-            data=data,
+            json=data,  # ✅ Send as proper JSON
             headers=headers,
             timeout=timeout,
             verify=False
@@ -65,16 +60,14 @@ if prompt:
             result = response.json()
 
             if 'result' in result and isinstance(result['result'], list):
-                formatted_output = ""
-                for row in result['result']:
-                    formatted_output += "\n".join([f"**{k}**: {v}" for k, v in row.items()]) + "\n\n---\n\n"
+                df = pd.DataFrame(result['result'])
 
                 with st.chat_message("assistant"):
-                    typewriter(text=formatted_output.strip(), speed=55)
+                    st.dataframe(df)
 
                 st.session_state.CRM_SQL_messages.append({
                     "role": "assistant",
-                    "content": formatted_output.strip()
+                    "content": df.to_markdown(index=False)
                 })
             else:
                 with st.chat_message("assistant"):
