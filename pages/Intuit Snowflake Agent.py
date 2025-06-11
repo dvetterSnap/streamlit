@@ -5,11 +5,11 @@ import os
 import json
 
 # Load environment variables using os
-URL = os.getenv("SL_CRM_SQL_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/Intuit/Snowflake%20Agent%20Task")
-BEARER_TOKEN = os.getenv("SL_CRM_SQL_TASK_TOKEN", "1234")
+URL = os.getenv("SL_SF_TASK_URL", "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/Dylan%20Vetter/Intuit/Snowflake%20Agent%20Task")
+BEARER_TOKEN = os.getenv("SL_SF_TASK_TOKEN", "1234")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("CRM_SQL_PAGE_TITLE", "Intuit Snowflake Agent")
-title = os.getenv("CRM_SQL_TITLE", "Intuit Snowflake Agent")
+page_title = os.getenv("SF_PAGE_TITLE", "Intuit Snowflake Agent")
+title = os.getenv("SF_TITLE", "Intuit Snowflake Agent")
 
 def typewriter(text: str, speed: int):
     tokens = text.split()
@@ -32,17 +32,17 @@ st.markdown(
     """
 )
 
-if "CRM_SQL_messages" not in st.session_state:
-    st.session_state.CRM_SQL_messages = []
+if "SF_messages" not in st.session_state:
+    st.session_state.SF_messages = []
 
-for message in st.session_state.CRM_SQL_messages:
+for message in st.session_state.SF_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 prompt = st.chat_input("Ask me anything")
 if prompt:
     st.chat_message("user").markdown(prompt)
-    st.session_state.CRM_SQL_messages.append({"role": "user", "content": prompt})
+    st.session_state.SF_messages.append({"role": "user", "content": prompt})
     with st.spinner("Working..."):
         try:
             data = {"prompt": prompt}
@@ -59,7 +59,7 @@ if prompt:
             if response.status_code == 200:
                 result = response.json()
                 pretty_result = json.dumps(result, indent=2)
-                st.session_state.CRM_SQL_messages.append({"role": "assistant", "content": f"```json\n{pretty_result}\n```"})
+                st.session_state.SF_messages.append({"role": "assistant", "content": f"```json\n{pretty_result}\n```"})
                 st.rerun()
             else:
                 st.error(f"❌ Error from SnapLogic API: {response.status_code}")
