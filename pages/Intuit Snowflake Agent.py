@@ -19,6 +19,23 @@ def typewriter(text: str, speed: int):
         container.markdown(curr_full_text)
         time.sleep(1 / speed)
 
+def render_json_as_bullets(json_obj, indent=0):
+    """Recursively render a dict or list as Markdown bullets."""
+    md = ""
+    prefix = "    " * indent + "- "
+    if isinstance(json_obj, dict):
+        for k, v in json_obj.items():
+            if isinstance(v, (dict, list)):
+                md += f"{prefix}**{k}:**\n" + render_json_as_bullets(v, indent + 1)
+            else:
+                md += f"{prefix}**{k}:** {v}\n"
+    elif isinstance(json_obj, list):
+        for idx, item in enumerate(json_obj):
+            md += f"{prefix}{idx + 1}.\n" + render_json_as_bullets(item, indent + 1)
+    else:
+        md += f"{prefix}{json_obj}\n"
+    return md
+
 st.set_page_config(page_title=page_title)
 st.title(title)
 
@@ -37,7 +54,11 @@ if "SF_messages" not in st.session_state:
 
 for message in st.session_state.SF_messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        if message["content"].startswith("```json"):
+            # Old format fallback
+            st.markdown(message["content"])
+        else:
+            st.markdown(message["content"])
 
 prompt = st.chat_input("Ask me anything")
 if prompt:
@@ -51,15 +72,18 @@ if prompt:
             }
             response = requests.post(
                 url=URL,
-                json=data,  # changed to json for proper payload
+                json=data,
                 headers=headers,
                 timeout=timeout,
                 verify=False
             )
             if response.status_code == 200:
                 result = response.json()
-                pretty_result = json.dumps(result, indent=2)
-                st.session_state.SF_messages.append({"role": "assistant", "content": f"```json\n{pretty_result}\n```"})
+                bullet_md = render_json_as_bullets(result)
+                st.session_state.SF_messages.append({
+                    "role": "assistant",
+                    "content": bullet_md
+                })
                 st.rerun()
             else:
                 st.error(f"❌ Error from SnapLogic API: {response.status_code}")
