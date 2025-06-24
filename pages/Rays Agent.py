@@ -9,8 +9,8 @@ import uuid
 URL = os.getenv("SL_Tampa_TASK_URL", "https://demo-fm.snaplogic.io/api/1/rest/feed-master/queue/ConnectFasterInc/Dylan%20Vetter/TampaBayRays/Driver%20Task")
 BEARER_TOKEN = os.getenv("SL_Tampa_TASK_TOKEN", "1234")
 timeout = int(os.getenv("SL_TASK_TIMEOUT", "1000"))
-page_title = os.getenv("Tampa_PAGE_TITLE", "CRM Agent")
-title = os.getenv("Tampa_TITLE", "CRM Agent")
+page_title = os.getenv("Tampa_PAGE_TITLE", "Tampa Bay Rays Agent")
+title = os.getenv("Tampa_TITLE", "Tampa Bay Rays Agent")
 
 # Streamlit Page Properties
 st.set_page_config(page_title=page_title)
@@ -30,7 +30,9 @@ st.markdown(
     ### This is a Tampa Bay Rays Agent that allows fans to interact with the Tampa Bay Rays Website and Schedule using Natural Language
     Example Questions
     - Tell me about the lastest headlines?
-    - What is the upcomign schedule?
+    - What is the upcoming schedule?
+    - How do I deal with parking at the stadium?
+    - Help me buy a ticket to the game
     """
 )
 
