@@ -27,7 +27,7 @@ def typewriter(text: str, speed: int):
 # Description block
 st.markdown(
     """  
-    ### This is a CRM Agent that allows fans to interact with the Tampa Bay Rays Website and Schedule using Natural Language
+    ### This is a Tampa Bay Rays Agent that allows fans to interact with the Tampa Bay Rays Website and Schedule using Natural Language
     Example Questions
     - Tell me about the lastest headlines?
     - What is the upcomign schedule?
