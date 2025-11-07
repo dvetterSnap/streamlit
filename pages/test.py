@@ -220,6 +220,9 @@ with st.container(border=True):
                 status.update(label="PO created", state="complete")
             except Exception as e:
                 st.error(f"Failed to create PO: {e}")
+                # Mark record as failed
+                st.session_state.recs.loc[st.session_state.recs["rec_id"] == chosen["rec_id"], "status"] = "Failed"
+                st.toast("PO creation failed", icon="❌")
                 status.update(label="Failed", state="error")
                 st.stop()
         # Update in-memory table
