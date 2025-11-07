@@ -75,6 +75,8 @@ supplier_filter = st.sidebar.multiselect(
 window_days = st.sidebar.slider("Shortage window (days)", 1, 60, 21)
 auto_approve_small = st.sidebar.toggle("Auto-approve tiny orders (< 250 units)", value=False)
 
+erp = st.sidebar.selectbox("ERP System", ["SAP", "NetSuite"], index=0)
+
 env = st.sidebar.selectbox("Environment", ["Dev", "QA", "Prod"], index=0)
 dry_run = st.sidebar.toggle("Dry run (do not call ERP)", value=True)
 
@@ -177,6 +179,7 @@ with st.container(border=True):
             "recommended_qty": int(row["recommended_qty"]),
             "supplier": row["supplier"],
             "justification": justification,
+            "erp": erp,
             "environment": env,
             "dry_run": dry_run,
         }
@@ -193,27 +196,32 @@ with st.container(border=True):
         with st.status("Creating PO via SnapLogic…", expanded=True) as status:
             st.write("Posting payload to SnapLogic pipeline endpoint…")
             time.sleep(0.6)
-            # --- Replace this block with a real call ---
-            # try:
-            #     SL_ENDPOINT = st.secrets["SNAPLOGIC_ENDPOINT"]
-            #     SL_TOKEN = st.secrets["SNAPLOGIC_BEARER"]
-            #     res = requests.post(
-            #         SL_ENDPOINT,
-            #         json=payload,
-            #         headers={"Authorization": f"Bearer {SL_TOKEN}"},
-            #         timeout=20,
-            #     )
-            #     res.raise_for_status()
-            #     data = res.json()
-            #     po_number = data.get("po_number", "PO-XXXX")
-            # except Exception as e:
-            #     st.error(f"Failed to create PO: {e}")
-            #     status.update(label="Failed", state="error")
-            #     st.stop()
-            # Mocked response for demo
-            po_number = f"PO-{int(time.time())%100000}"
-            st.write({"payload": payload, "po_number": po_number})
-            status.update(label="PO created", state="complete")
+            # Call SnapLogic Ultra/Task endpoint
+            try:
+                SL_ENDPOINT = (
+                    "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/"
+                    "Dylan%20Vetter/DemoBucket/Amazon%20PO%20creation%20Task?bearer_token=12345"
+                )
+                res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
+                res.raise_for_status()
+                # Try a few common field names for the PO number
+                data = {}
+                try:
+                    data = res.json()
+                except Exception:
+                    data = {"raw": res.text}
+                po_number = (
+                    (data.get("po_number") if isinstance(data, dict) else None)
+                    or (data.get("poNumber") if isinstance(data, dict) else None)
+                    or (data.get("PO") if isinstance(data, dict) else None)
+                    or "PO-UNKNOWN"
+                )
+                st.write({"payload": payload, "response": data})
+                status.update(label="PO created", state="complete")
+            except Exception as e:
+                st.error(f"Failed to create PO: {e}")
+                status.update(label="Failed", state="error")
+                st.stop()
         # Update in-memory table
         st.session_state.recs.loc[st.session_state.recs["rec_id"] == chosen["rec_id"], "status"] = f"Created: {po_number}"
         st.toast(f"PO {po_number} created", icon="✅")
