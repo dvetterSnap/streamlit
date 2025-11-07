@@ -96,6 +96,14 @@ with col3:
 
 st.title("Review & Approve Suggested POs")
 
+# Show last API response in a small window after Approve
+if "last_api_response" in st.session_state:
+    with st.expander("SnapLogic response (most recent)", expanded=True):
+        st.json(st.session_state["last_api_response"].get("body", st.session_state["last_api_response"]))
+        if st.button("Dismiss", key="dismiss_api_resp"):
+            del st.session_state["last_api_response"]
+            st.rerun()
+
 # -----------------------------
 # Filtered table
 # -----------------------------
@@ -216,8 +224,9 @@ with st.container(border=True):
                     or (data.get("PO") if isinstance(data, dict) else None)
                     or "PO-UNKNOWN"
                 )
-                st.write({"payload": payload, "response": data})
-                status.update(label="PO created", state="complete")
+                # capture response to show after rerun
+            st.session_state["last_api_response"] = {"body": data, "meta": {"rec_id": payload.get("rec_id"), "erp": payload.get("erp"), "environment": payload.get("environment")}}
+            status.update(label="PO created", state="complete")
             except Exception as e:
                 st.error(f"Failed to create PO: {e}")
                 # Mark record as failed
@@ -227,7 +236,6 @@ with st.container(border=True):
                 st.stop()
         # Update in-memory table
         st.session_state.recs.loc[st.session_state.recs["rec_id"] == chosen["rec_id"], "status"] = f"Created: {po_number}"
-        st.toast(f"PO {po_number} created", icon="✅")
         st.rerun()
 
     if reject:
