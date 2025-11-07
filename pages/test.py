@@ -88,7 +88,7 @@ accountName = ACCOUNT_MAP.get(erp, {}).get(env, f"{erp.lower()}_{env.lower()}")
 dry_run = st.sidebar.toggle("Dry run (do not call ERP)", value=True)
 
 st.sidebar.divider()
-st.sidebar.caption("When Approve is clicked, we post a single JSON payload to a SnapLogic pipeline, which validates and creates the PO in the ERP, returning PO number & status.")
+st.sidebar.caption("Approve posts one JSON payload to a SnapLogic pipeline which creates the PO in the ERP and returns a status.")
 
 # -----------------------------
 # Header stats
@@ -201,40 +201,43 @@ with st.container(border=True):
             st.write("Posting payload to SnapLogic pipeline endpoint…")
             time.sleep(0.6)
             try:
-                # Keep bearer token; just append accountName derived from ERP + Environment
+                # Keep bearer token; append accountName derived from ERP + Environment
                 SL_ENDPOINT = (
                     "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/"
                     "Dylan%20Vetter/DemoBucket/Amazon%20PO%20creation%20Task"
                     f"?bearer_token=12345&accountName={accountName}"
                 )
-                res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
-                res.raise_for_status()
 
-                try:
-                    data = res.json()
-                except Exception:
-                    data = {"raw": res.text}
-                po_number = (
-                    data.get("po_number")
-                    or data.get("poNumber")
-                    or data.get("PO")
-                    or "PO-UNKNOWN"
-                )
-                st.write({"payload": payload, "response": data})
-                status.update(label="PO created", state="complete")
+                res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
+
+                # Success rule: any 2xx is success; no response parsing
+                if 200 <= res.status_code < 300:
+                    po_number = "PO-CREATED"
+                    st.write({"endpoint": SL_ENDPOINT, "status_code": res.status_code})
+                    status.update(label="PO created", state="complete")
+                else:
+                    raise Exception(f"Non-2xx status code: {res.status_code}")
+
             except Exception as e:
                 st.error(f"Failed to create PO: {e}")
-                st.session_state.recs.loc[st.session_state.recs["rec_id"] == chosen["rec_id"], "status"] = "Failed"
+                st.session_state.recs.loc[
+                    st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
+                ] = "Failed"
                 st.toast("PO creation failed", icon="❌")
                 status.update(label="Failed", state="error")
                 st.stop()
 
-        st.session_state.recs.loc[st.session_state.recs["rec_id"] == chosen["rec_id"], "status"] = f"Created: {po_number}"
-        st.toast(f"PO {po_number} created", icon="✅")
+        # Update in-memory table on success
+        st.session_state.recs.loc[
+            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
+        ] = f"Created: {po_number}"
+        st.toast("PO created", icon="✅")
         st.rerun()
 
     if reject:
-        st.session_state.recs.loc[st.session_state.recs["rec_id"] == chosen["rec_id"], "status"] = "Rejected"
+        st.session_state.recs.loc[
+            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
+        ] = "Rejected"
         st.toast(f"Recommendation {chosen['rec_id']} rejected", icon="🚫")
         st.rerun()
 
@@ -251,20 +254,7 @@ st.dataframe(log_df, use_container_width=True, hide_index=True)
 with st.expander("Integration notes (hide in final demo)"):
     st.markdown(
         """
-        **Payload shape posted to SnapLogic** (example):
-        ```json
-        {
-          "rec_id": "R-1001",
-          "sku": "ABC123",
-          "location": "DAL-DC",
-          "shortage_date": "2025-11-18",
-          "recommended_qty": 4500,
-          "supplier": "Supplier A",
-          "justification": "Forecast < Safety Stock (gap 3100)",
-          "environment": "Dev",
-          "dry_run": true
-        }
-        ```
-        - `accountName` is sent as a URL parameter, derived from ERP + Environment.
+        - `accountName` is appended to the URL as a query parameter, derived from ERP + Environment.
+        - Success is determined solely by HTTP 2xx status; the response body is not parsed.
         """
     )
