@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import requests
+from urllib.parse import quote
 
 # -----------------------------
 # Page config
@@ -79,11 +80,14 @@ erp = st.sidebar.selectbox("ERP System", ["SAP", "NetSuite"], index=0)
 env = st.sidebar.selectbox("Environment", ["Dev", "QA", "Prod"], index=0)
 
 # Build accountName from ERP + Environment
-ACCOUNT_MAP = {
-    "NetSuite": {"Dev": "netsuite_dev", "QA": "netsuite_qa", "Prod": "netsuite_prod"},
-    "SAP": {"Dev": "sap_dev", "QA": "sap_qa", "Prod": "sap_prod"},
-}
-accountName = ACCOUNT_MAP.get(erp, {}).get(env, f"{erp.lower()}_{env.lower()}")
+if erp == "NetSuite":
+    accountName_raw = "../../shared/NS_Token account_2018_2_TimToken vld 10.25.2023"
+else:
+    ACCOUNT_MAP = {"Dev": "sap_dev", "QA": "sap_qa", "Prod": "sap_prod"}
+    accountName_raw = ACCOUNT_MAP.get(env, f"sap_{env.lower()}")
+
+# URL-encode for safe query param (encode slashes and spaces)
+accountName_param = quote(accountName_raw, safe="")
 
 dry_run = st.sidebar.toggle("Dry run (do not call ERP)", value=True)
 
@@ -201,11 +205,11 @@ with st.container(border=True):
             st.write("Posting payload to SnapLogic pipeline endpoint…")
             time.sleep(0.6)
             try:
-                # Keep bearer token; append accountName derived from ERP + Environment
+                # Keep bearer token; append encoded accountName derived from ERP + Environment rules
                 SL_ENDPOINT = (
                     "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/"
                     "Dylan%20Vetter/DemoBucket/Amazon%20PO%20creation%20Task"
-                    f"?bearer_token=12345&accountName={accountName}"
+                    f"?bearer_token=12345&accountName={accountName_param}"
                 )
 
                 res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
@@ -213,7 +217,11 @@ with st.container(border=True):
                 # Success rule: any 2xx is success; no response parsing
                 if 200 <= res.status_code < 300:
                     po_number = "PO-CREATED"
-                    st.write({"endpoint": SL_ENDPOINT, "status_code": res.status_code})
+                    st.write({
+                        "endpoint": SL_ENDPOINT,
+                        "status_code": res.status_code,
+                        "accountName_raw": accountName_raw
+                    })
                     status.update(label="PO created", state="complete")
                 else:
                     raise Exception(f"Non-2xx status code: {res.status_code}")
@@ -254,7 +262,8 @@ st.dataframe(log_df, use_container_width=True, hide_index=True)
 with st.expander("Integration notes (hide in final demo)"):
     st.markdown(
         """
-        - `accountName` is appended to the URL as a query parameter, derived from ERP + Environment.
+        - For NetSuite (any environment) the `accountName` param is a shared token value and is URL-encoded.
+        - For SAP, `accountName` is mapped by environment (sap_dev, sap_qa, sap_prod).
         - Success is determined solely by HTTP 2xx status; the response body is not parsed.
         """
     )
