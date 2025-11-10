@@ -338,26 +338,44 @@ with st.container(border=True):
         st.rerun()
 
 # -----------------------------
-# Activity log with URL links
+# Activity log with URL links (FIXED)
 # -----------------------------
 st.subheader("📜 Activity log")
-log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status", "internal_id", "url"]]
 
-# Display with clickable URL column
+# Only select columns that exist in the DataFrame
+log_columns = ["rec_id", "sku", "location", "status"]
+
+# Add optional columns if they exist
+if "internal_id" in st.session_state.recs.columns:
+    log_columns.append("internal_id")
+if "url" in st.session_state.recs.columns:
+    log_columns.append("url")
+
+log_df = st.session_state.recs.copy()[log_columns]
+
+# Configure columns based on what's available
+column_config = {
+    "rec_id": st.column_config.Column("🆔 Rec ID"),
+    "sku": st.column_config.Column("📦 SKU"),
+    "location": st.column_config.Column("📍 Location"),
+    "status": st.column_config.Column("✓ Status"),
+}
+
+# Add internal_id config if column exists
+if "internal_id" in log_columns:
+    column_config["internal_id"] = st.column_config.Column("🔢 Internal ID")
+
+# Add url config if column exists
+if "url" in log_columns:
+    column_config["url"] = st.column_config.LinkColumn(
+        "🔗 View Order",
+        help="Click to view the created sales order in ERP",
+        display_text="View in ERP"
+    )
+
 st.dataframe(
     log_df,
-    column_config={
-        "rec_id": st.column_config.Column("🆔 Rec ID"),
-        "sku": st.column_config.Column("📦 SKU"),
-        "location": st.column_config.Column("📍 Location"),
-        "status": st.column_config.Column("✓ Status"),
-        "internal_id": st.column_config.Column("🔢 Internal ID"),
-        "url": st.column_config.LinkColumn(
-            "🔗 View Order",
-            help="Click to view the created sales order in ERP",
-            display_text="View in ERP"
-        ),
-    },
+    column_config=column_config,
     use_container_width=True,
     hide_index=True
 )
