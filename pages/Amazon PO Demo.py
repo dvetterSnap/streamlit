@@ -21,22 +21,11 @@ st.markdown("""
         height: 3em;
         font-weight: 600;
     }
-    
-    .stButton>button {
-        border-radius: 8px;
-        height: 3em;
-        font-weight: 500;
-    }
-    
-    [data-testid="stMetricValue"] {
-        font-size: 28px;
-        font-weight: 700;
-    }
-    
+    .stButton>button { border-radius: 8px; height: 3em; font-weight: 500; }
+    [data-testid="stMetricValue"] { font-size: 28px; font-weight: 700; }
     h1 {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -60,8 +49,6 @@ def load_recommendations():
             "forecast_gap": 3100,
             "reason": "Forecast < Safety Stock",
             "status": "Pending",
-            "internal_id": "",
-            "url": "",
         },
         {
             "rec_id": "R-1002",
@@ -76,8 +63,6 @@ def load_recommendations():
             "forecast_gap": 900,
             "reason": "Seasonal demand increase",
             "status": "Pending",
-            "internal_id": "",
-            "url": "",
         },
         {
             "rec_id": "R-1003",
@@ -92,11 +77,13 @@ def load_recommendations():
             "forecast_gap": 1050,
             "reason": "Backorder depletion",
             "status": "Pending",
-            "internal_id": "",
-            "url": "",
         },
     ]
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # placeholders for ERP response enrichment
+    df["internal_id"] = None
+    df["url"] = None
+    return df
 
 if "recs" not in st.session_state:
     st.session_state.recs = load_recommendations()
@@ -120,6 +107,7 @@ env = st.sidebar.selectbox("🌐 Environment", ["Dev", "QA", "Prod"], index=0)
 
 # Build accountName from ERP + Environment
 if erp == "NetSuite":
+    # fixed value for any NetSuite env (per your rule)
     accountName_raw = "../../shared/NS_Token account_2018_2_TimToken vld 10.25.2023"
 else:
     ACCOUNT_MAP = {"Dev": "sap_dev", "QA": "sap_qa", "Prod": "sap_prod"}
@@ -161,10 +149,9 @@ if location_filter:
 if supplier_filter:
     df = df[df["supplier"].isin(supplier_filter)]
 
-# Selection model
 st.subheader("📦 Recommendations queue")
-selection = st.data_editor(
-    df,
+st.data_editor(
+    df[["rec_id","sku","location","shortage_date","recommended_qty","supplier","forecast_gap","reason","status"]],
     column_config={
         "rec_id": st.column_config.Column("🆔 Rec ID", disabled=True),
         "sku": st.column_config.Column("📦 SKU", disabled=True),
@@ -176,10 +163,7 @@ selection = st.data_editor(
         "reason": st.column_config.Column("💡 Reason / Driver", disabled=True),
         "status": st.column_config.Column("✓ Status", disabled=True),
     },
-    hide_index=True,
-    use_container_width=True,
-    num_rows="dynamic",
-    disabled=True,
+    hide_index=True, use_container_width=True, num_rows="dynamic", disabled=True,
 )
 
 # Row chooser
@@ -206,18 +190,6 @@ with st.container(border=True):
     st.write(
         f"**🏭 Supplier:** {chosen['supplier']}  |  **💡 Reason:** {chosen['reason']}  |  **📊 Forecast gap:** {int(chosen['forecast_gap'])}"
     )
-
-    # Add warnings
-    warnings = []
-    if chosen["recommended_qty"] > 5000:
-        warnings.append("⚠️ Large quantity order - requires additional approval")
-    if chosen["on_hand"] < chosen["safety_stock"] * 0.2:
-        warnings.append("🔴 Critical stock level - expedited shipping recommended")
-    
-    if warnings:
-        st.markdown("---")
-        for w in warnings:
-            st.warning(w)
 
     st.markdown("---")
     st.markdown("**📝 Business justification**")
@@ -260,7 +232,7 @@ with st.container(border=True):
         if dry_run:
             st.caption("🧪 **Dry Run Mode:** No actual PO will be created")
         else:
-            st.caption(f"⚡ **Live Mode:** Approving will call the SnapLogic pipeline")
+            st.caption("⚡ **Live Mode:** Approving will call the SnapLogic pipeline")
 
     if approve:
         payload = build_payload(chosen)
@@ -268,57 +240,55 @@ with st.container(border=True):
             st.write("📤 Posting payload to SnapLogic pipeline endpoint…")
             time.sleep(0.6)
             try:
-                # Keep bearer token; append encoded accountName derived from ERP + Environment rules
                 SL_ENDPOINT = (
                     "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/"
                     "Dylan%20Vetter/DemoBucket/Amazon%20PO%20creation%20Task"
                     f"?bearer_token=12345&accountName={accountName_param}"
                 )
-
                 res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
 
-                # Success rule: any 2xx is success; parse response for internal_id and url
+                # Treat any 2xx as success
                 if 200 <= res.status_code < 300:
+                    # Try to extract internal_id and url if present
+                    internal_id, link_url = None, None
                     try:
-                        response_data = res.json()
-                        internal_id = response_data.get("internal_id", "N/A")
-                        url = response_data.get("url", "")
-                        
-                        st.write("✅ **Response received:**")
-                        st.json({
-                            "endpoint": SL_ENDPOINT,
-                            "status_code": res.status_code,
-                            "accountName_raw": accountName_raw,
-                            "internal_id": internal_id,
-                            "url": url
-                        })
-                        
-                        # Update the record with internal_id and url
-                        st.session_state.recs.loc[
-                            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
-                        ] = f"Created: {internal_id}"
-                        
-                        st.session_state.recs.loc[
-                            st.session_state.recs["rec_id"] == chosen["rec_id"], "internal_id"
-                        ] = internal_id
-                        
-                        st.session_state.recs.loc[
-                            st.session_state.recs["rec_id"] == chosen["rec_id"], "url"
-                        ] = url
-                        
-                        status.update(label=f"✅ PO {internal_id} created", state="complete")
-                        
-                    except Exception as parse_error:
-                        # If response isn't JSON or doesn't have expected fields
-                        st.warning(f"⚠️ PO created but response parsing failed: {parse_error}")
-                        st.session_state.recs.loc[
-                            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
-                        ] = "Created: PO-CREATED"
-                        status.update(label="✅ PO created", state="complete")
+                        body = res.json()
+                        # body may be a list or a dict
+                        if isinstance(body, list) and body:
+                            body = body[0]
+                        if isinstance(body, dict):
+                            internal_id = body.get("internal_id") or body.get("po_number") or body.get("id")
+                            link_url = body.get("url")
+                    except Exception:
+                        pass
+
+                    # Fallback display string
+                    po_number = internal_id or "PO-CREATED"
+
+                    # Log what happened
+                    st.write({
+                        "endpoint": SL_ENDPOINT,
+                        "status_code": res.status_code,
+                        "accountName_raw": accountName_raw,
+                        "parsed_internal_id": internal_id,
+                        "parsed_url": link_url
+                    })
+
+                    # Update in-memory table
+                    mask = st.session_state.recs["rec_id"] == chosen["rec_id"]
+                    st.session_state.recs.loc[mask, "status"] = f"Created: {po_number}"
+                    if internal_id:
+                        st.session_state.recs.loc[mask, "internal_id"] = internal_id
+                    if link_url:
+                        st.session_state.recs.loc[mask, "url"] = link_url
+
+                    status.update(label="✅ PO created", state="complete")
+                    st.toast("🎉 PO created", icon="✅")
+                    st.rerun()
                 else:
                     raise Exception(f"Non-2xx status code: {res.status_code}")
 
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 st.error(f"❌ Failed to create PO: {e}")
                 st.session_state.recs.loc[
                     st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
@@ -326,9 +296,6 @@ with st.container(border=True):
                 st.toast("PO creation failed", icon="❌")
                 status.update(label="Failed", state="error")
                 st.stop()
-
-        st.toast("🎉 PO created", icon="✅")
-        st.rerun()
 
     if reject:
         st.session_state.recs.loc[
@@ -338,46 +305,18 @@ with st.container(border=True):
         st.rerun()
 
 # -----------------------------
-# Activity log with URL links (FIXED)
+# Activity log (now with internal_id + clickable URL)
 # -----------------------------
 st.subheader("📜 Activity log")
-
-# Only select columns that exist in the DataFrame
-log_columns = ["rec_id", "sku", "location", "status"]
-
-# Add optional columns if they exist
-if "internal_id" in st.session_state.recs.columns:
-    log_columns.append("internal_id")
-if "url" in st.session_state.recs.columns:
-    log_columns.append("url")
-
-log_df = st.session_state.recs.copy()[log_columns]
-
-# Configure columns based on what's available
-column_config = {
-    "rec_id": st.column_config.Column("🆔 Rec ID"),
-    "sku": st.column_config.Column("📦 SKU"),
-    "location": st.column_config.Column("📍 Location"),
-    "status": st.column_config.Column("✓ Status"),
-}
-
-# Add internal_id config if column exists
-if "internal_id" in log_columns:
-    column_config["internal_id"] = st.column_config.Column("🔢 Internal ID")
-
-# Add url config if column exists
-if "url" in log_columns:
-    column_config["url"] = st.column_config.LinkColumn(
-        "🔗 View Order",
-        help="Click to view the created sales order in ERP",
-        display_text="View in ERP"
-    )
-
+log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status", "internal_id", "url"]]
 st.dataframe(
     log_df,
-    column_config=column_config,
     use_container_width=True,
-    hide_index=True
+    hide_index=True,
+    column_config={
+        "url": st.column_config.LinkColumn("URL", display_text="Open in ERP"),
+        "internal_id": st.column_config.Column("ERP Ref ID"),
+    },
 )
 
 # Footer
@@ -398,8 +337,7 @@ with st.expander("🔧 Integration notes (hide in final demo)"):
         """
         - For NetSuite (any environment) the `accountName` param is a shared token value and is URL-encoded.
         - For SAP, `accountName` is mapped by environment (sap_dev, sap_qa, sap_prod).
-        - Success is determined by HTTP 2xx status; response should contain `internal_id` and `url` fields.
-        - The `internal_id` is the reference ID of the created sales order/invoice in the ERP.
-        - The `url` provides a direct link to view the order in the ERP system.
+        - Success is determined solely by HTTP 2xx status.
+        - If the response includes `internal_id` and `url`, they’re written to the activity log and the URL is clickable.
         """
     )
