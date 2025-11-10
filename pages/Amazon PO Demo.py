@@ -50,8 +50,9 @@ def load_recommendations():
         {
             "rec_id": "R-1001",
             "sku": "ABC123",
+            "sku_id" :  "15",
             "location": "DAL-DC",
-            "shortage_date": "2025-11-18",
+            "shortage_date": "11/18/2025",
             "recommended_qty": 4500,
             "supplier": "Supplier A",
             "safety_stock": 3000,
@@ -64,8 +65,9 @@ def load_recommendations():
         {
             "rec_id": "R-1002",
             "sku": "FGH987",
+            "sku_id" :  "15",
             "location": "RNO-DC",
-            "shortage_date": "2025-11-22",
+            "shortage_date": "11/12/2025",
             "recommended_qty": 800,
             "supplier": "Supplier C",
             "safety_stock": 2000,
@@ -78,8 +80,9 @@ def load_recommendations():
         {
             "rec_id": "R-1003",
             "sku": "XYZ555",
+            "sku_id" :  "15",
             "location": "PHX-DC",
-            "shortage_date": "2025-11-20",
+            "shortage_date": "11/20/2025",
             "recommended_qty": 1200,
             "supplier": "Supplier B",
             "safety_stock": 1500,
