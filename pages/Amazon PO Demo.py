@@ -50,7 +50,7 @@ def load_recommendations():
         {
             "rec_id": "R-1001",
             "sku": "ABC123",
-            "sku_id" :  "15",
+            "sku_id" :  "16",
             "location": "DAL-DC",
             "shortage_date": "11/18/2025",
             "recommended_qty": 4500,
@@ -65,7 +65,7 @@ def load_recommendations():
         {
             "rec_id": "R-1002",
             "sku": "FGH987",
-            "sku_id" :  "15",
+            "sku_id" :  "18",
             "location": "RNO-DC",
             "shortage_date": "11/12/2025",
             "recommended_qty": 800,
