@@ -235,7 +235,7 @@ with st.container(border=True):
             "rec_id": row["rec_id"],
             "sku": row["sku"],
             "sku_id": "15",
-            "internal_id" : "11486"
+            "internal_id" : "11486",
             "location": row["location"],
             "shortage_date": row["shortage_date"],
             "recommended_qty": int(row["recommended_qty"]),
