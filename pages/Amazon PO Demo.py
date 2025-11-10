@@ -60,6 +60,8 @@ def load_recommendations():
             "forecast_gap": 3100,
             "reason": "Forecast < Safety Stock",
             "status": "Pending",
+            "internal_id": "",
+            "url": "",
         },
         {
             "rec_id": "R-1002",
@@ -74,6 +76,8 @@ def load_recommendations():
             "forecast_gap": 900,
             "reason": "Seasonal demand increase",
             "status": "Pending",
+            "internal_id": "",
+            "url": "",
         },
         {
             "rec_id": "R-1003",
@@ -88,6 +92,8 @@ def load_recommendations():
             "forecast_gap": 1050,
             "reason": "Backorder depletion",
             "status": "Pending",
+            "internal_id": "",
+            "url": "",
         },
     ]
     return pd.DataFrame(data)
@@ -235,7 +241,7 @@ with st.container(border=True):
             "rec_id": row["rec_id"],
             "sku": row["sku"],
             "sku_id": "15",
-            "internal_id" : "11486",
+            "internal_id": "11486",
             "location": row["location"],
             "shortage_date": row["shortage_date"],
             "recommended_qty": int(row["recommended_qty"]),
@@ -271,19 +277,48 @@ with st.container(border=True):
 
                 res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
 
-                # Success rule: any 2xx is success; no response parsing
+                # Success rule: any 2xx is success; parse response for internal_id and url
                 if 200 <= res.status_code < 300:
-                    po_number = "PO-CREATED"
-                    st.write({
-                        "endpoint": SL_ENDPOINT,
-                        "status_code": res.status_code,
-                        "accountName_raw": accountName_raw
-                    })
-                    status.update(label="✅ PO created", state="complete")
+                    try:
+                        response_data = res.json()
+                        internal_id = response_data.get("internal_id", "N/A")
+                        url = response_data.get("url", "")
+                        
+                        st.write("✅ **Response received:**")
+                        st.json({
+                            "endpoint": SL_ENDPOINT,
+                            "status_code": res.status_code,
+                            "accountName_raw": accountName_raw,
+                            "internal_id": internal_id,
+                            "url": url
+                        })
+                        
+                        # Update the record with internal_id and url
+                        st.session_state.recs.loc[
+                            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
+                        ] = f"Created: {internal_id}"
+                        
+                        st.session_state.recs.loc[
+                            st.session_state.recs["rec_id"] == chosen["rec_id"], "internal_id"
+                        ] = internal_id
+                        
+                        st.session_state.recs.loc[
+                            st.session_state.recs["rec_id"] == chosen["rec_id"], "url"
+                        ] = url
+                        
+                        status.update(label=f"✅ PO {internal_id} created", state="complete")
+                        
+                    except Exception as parse_error:
+                        # If response isn't JSON or doesn't have expected fields
+                        st.warning(f"⚠️ PO created but response parsing failed: {parse_error}")
+                        st.session_state.recs.loc[
+                            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
+                        ] = "Created: PO-CREATED"
+                        status.update(label="✅ PO created", state="complete")
                 else:
                     raise Exception(f"Non-2xx status code: {res.status_code}")
 
-            except Exception as e:
+            except requests.exceptions.RequestException as e:
                 st.error(f"❌ Failed to create PO: {e}")
                 st.session_state.recs.loc[
                     st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
@@ -292,10 +327,6 @@ with st.container(border=True):
                 status.update(label="Failed", state="error")
                 st.stop()
 
-        # Update in-memory table on success
-        st.session_state.recs.loc[
-            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
-        ] = f"Created: {po_number}"
         st.toast("🎉 PO created", icon="✅")
         st.rerun()
 
@@ -307,11 +338,29 @@ with st.container(border=True):
         st.rerun()
 
 # -----------------------------
-# Activity log tab (simple)
+# Activity log with URL links
 # -----------------------------
 st.subheader("📜 Activity log")
-log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status"]]
-st.dataframe(log_df, use_container_width=True, hide_index=True)
+log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status", "internal_id", "url"]]
+
+# Display with clickable URL column
+st.dataframe(
+    log_df,
+    column_config={
+        "rec_id": st.column_config.Column("🆔 Rec ID"),
+        "sku": st.column_config.Column("📦 SKU"),
+        "location": st.column_config.Column("📍 Location"),
+        "status": st.column_config.Column("✓ Status"),
+        "internal_id": st.column_config.Column("🔢 Internal ID"),
+        "url": st.column_config.LinkColumn(
+            "🔗 View Order",
+            help="Click to view the created sales order in ERP",
+            display_text="View in ERP"
+        ),
+    },
+    use_container_width=True,
+    hide_index=True
+)
 
 # Footer
 st.divider()
@@ -331,6 +380,8 @@ with st.expander("🔧 Integration notes (hide in final demo)"):
         """
         - For NetSuite (any environment) the `accountName` param is a shared token value and is URL-encoded.
         - For SAP, `accountName` is mapped by environment (sap_dev, sap_qa, sap_prod).
-        - Success is determined solely by HTTP 2xx status; the response body is not parsed.
+        - Success is determined by HTTP 2xx status; response should contain `internal_id` and `url` fields.
+        - The `internal_id` is the reference ID of the created sales order/invoice in the ERP.
+        - The `url` provides a direct link to view the order in the ERP system.
         """
     )
