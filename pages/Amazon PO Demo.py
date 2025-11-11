@@ -10,7 +10,7 @@ from urllib.parse import quote
 st.set_page_config(page_title="PO Creation Workbench", layout="wide", page_icon="🛒")
 
 # -----------------------------
-# Custom Styling
+# Custom Styling (SAFE ADDITIONS)
 # -----------------------------
 st.markdown("""
     <style>
@@ -39,7 +39,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# Mock data for the demo
+# Mock data for the demo (replace with your model output)
 # -----------------------------
 @st.cache_data
 def load_recommendations():
@@ -57,6 +57,8 @@ def load_recommendations():
             "forecast_gap": 3100,
             "reason": "Forecast < Safety Stock",
             "status": "Pending",
+            "salesorder_id": "",
+            "url": "",
         },
         {
             "rec_id": "R-1002",
@@ -71,6 +73,8 @@ def load_recommendations():
             "forecast_gap": 900,
             "reason": "Seasonal demand increase",
             "status": "Pending",
+            "salesorder_id": "",
+            "url": "",
         },
         {
             "rec_id": "R-1003",
@@ -85,6 +89,8 @@ def load_recommendations():
             "forecast_gap": 1050,
             "reason": "Backorder depletion",
             "status": "Pending",
+            "salesorder_id": "",
+            "url": "",
         },
     ]
     return pd.DataFrame(data)
@@ -93,7 +99,7 @@ if "recs" not in st.session_state:
     st.session_state.recs = load_recommendations()
 
 # -----------------------------
-# Sidebar filters & controls
+# Sidebar filters & configuration (cleaned)
 # -----------------------------
 st.sidebar.header("🔧 Filters & Configuration")
 
@@ -110,6 +116,7 @@ env = st.sidebar.selectbox("🌐 Environment", ["Dev", "QA", "Prod"], index=0)
 
 # Build accountName from ERP + Environment
 if erp == "NetSuite":
+    # Per requirement: same account value for NetSuite any environment
     accountName_raw = "../../shared/NS_Token account_2018_2_TimToken vld 10.25.2023"
 else:
     ACCOUNT_MAP = {"Dev": "sap_dev", "QA": "sap_qa", "Prod": "sap_prod"}
@@ -119,8 +126,6 @@ else:
 accountName_param = quote(accountName_raw, safe="")
 
 st.sidebar.divider()
-st.sidebar.caption("Approve posts one JSON payload to a SnapLogic pipeline which creates the PO in the ERP and returns a status.")
-
 if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
@@ -134,8 +139,8 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("📋 Pending recommendations", int((st.session_state.recs["status"] == "Pending").sum()))
 with col2:
-    created = int(st.session_state.recs["status"].astype(str).str.startswith("Created").sum())
-    st.metric("✅ POs created", created)
+    approved = (st.session_state.recs["status"].astype(str).str.startswith("Created")).sum()
+    st.metric("✅ Created today", int(approved))
 with col3:
     failures = int((st.session_state.recs["status"] == "Failed").sum())
     st.metric("⚠️ Failures (24h)", failures)
@@ -151,8 +156,11 @@ if supplier_filter:
 
 # Selection model
 st.subheader("📦 Recommendations queue")
-selection = st.data_editor(
-    df,
+st.data_editor(
+    df[[
+        "rec_id","sku","location","shortage_date","recommended_qty",
+        "supplier","forecast_gap","reason","status"
+    ]],
     column_config={
         "rec_id": st.column_config.Column("🆔 Rec ID", disabled=True),
         "sku": st.column_config.Column("📦 SKU", disabled=True),
@@ -195,7 +203,7 @@ with st.container(border=True):
         f"**🏭 Supplier:** {chosen['supplier']}  |  **💡 Reason:** {chosen['reason']}  |  **📊 Forecast gap:** {int(chosen['forecast_gap'])}"
     )
 
-    # Simple warnings
+    # Optional warnings
     warnings = []
     if chosen["recommended_qty"] > 5000:
         warnings.append("⚠️ Large quantity order - requires additional approval")
@@ -228,7 +236,7 @@ with st.container(border=True):
             "rec_id": row["rec_id"],
             "sku": row["sku"],
             "sku_id": "15",
-            "internal_id": "11486",
+            "internal_id": "11486",  # demo-only placeholder
             "location": row["location"],
             "shortage_date": row["shortage_date"],
             "recommended_qty": int(row["recommended_qty"]),
@@ -236,6 +244,7 @@ with st.container(border=True):
             "justification": justification,
             "erp": erp,
             "environment": env,
+            # no dry_run flag anymore
         }
 
     with colA:
@@ -243,14 +252,15 @@ with st.container(border=True):
     with colB:
         reject = st.button("❌ Reject", use_container_width=True)
     with colC:
-        st.caption("Approving will call the SnapLogic pipeline and return a PO number on success.")
+        st.caption(f"⚡ Approving will call the SnapLogic pipeline using account: `{accountName_raw}`")
 
     if approve:
         payload = build_payload(chosen)
         with st.status("🔄 Creating PO via SnapLogic…", expanded=True) as status:
             st.write("📤 Posting payload to SnapLogic pipeline endpoint…")
-            time.sleep(0.6)
+            time.sleep(0.4)
             try:
+                # Keep bearer token; append encoded accountName derived from ERP + Environment rules
                 SL_ENDPOINT = (
                     "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/"
                     "Dylan%20Vetter/DemoBucket/Amazon%20PO%20creation%20Task"
@@ -258,14 +268,30 @@ with st.container(border=True):
                 )
                 res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
 
-                # Any 2xx = success
+                # Success rule: any 2xx is success
                 if 200 <= res.status_code < 300:
-                    po_number = "PO-CREATED"
+                    # Try to parse returned fields for activity log
+                    internal_id, url = "", ""
+                    try:
+                        data = res.json()
+                        internal_id = str(data.get("internal_id") or data.get("id") or "")  # tolerant
+                        url = str(data.get("url") or data.get("href") or "")
+                    except Exception:
+                        data = {"raw": res.text}
+
                     st.write({
                         "endpoint": SL_ENDPOINT,
                         "status_code": res.status_code,
-                        "accountName_raw": accountName_raw
+                        "accountName_raw": accountName_raw,
+                        "response_preview": (data if isinstance(data, dict) else str(data))[:500],
                     })
+
+                    # Update in-memory table on success
+                    mask = st.session_state.recs["rec_id"] == chosen["rec_id"]
+                    st.session_state.recs.loc[mask, "status"] = f"Created: {internal_id or 'UNKNOWN'}"
+                    st.session_state.recs.loc[mask, "salesorder_id"] = internal_id
+                    st.session_state.recs.loc[mask, "url"] = url
+
                     status.update(label="✅ PO created", state="complete")
                 else:
                     raise Exception(f"Non-2xx status code: {res.status_code}")
@@ -279,10 +305,6 @@ with st.container(border=True):
                 status.update(label="Failed", state="error")
                 st.stop()
 
-        # Update in-memory table on success
-        st.session_state.recs.loc[
-            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
-        ] = f"Created: {po_number}"
         st.toast("🎉 PO created", icon="✅")
         st.rerun()
 
@@ -294,11 +316,24 @@ with st.container(border=True):
         st.rerun()
 
 # -----------------------------
-# Activity log
+# Activity log (now includes SalesOrder ID + URL link)
 # -----------------------------
 st.subheader("📜 Activity log")
-log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status"]]
-st.dataframe(log_df, use_container_width=True, hide_index=True)
+log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status", "salesorder_id", "url"]]
+st.data_editor(
+    log_df,
+    hide_index=True,
+    use_container_width=True,
+    disabled=True,
+    column_config={
+        "rec_id": st.column_config.Column("🆔 Rec ID"),
+        "sku": st.column_config.Column("📦 SKU"),
+        "location": st.column_config.Column("📍 Location"),
+        "status": st.column_config.Column("✓ Status"),
+        "salesorder_id": st.column_config.Column("SalesOrder ID"),
+        "url": st.column_config.LinkColumn("URL", display_text="Open"),
+    },
+)
 
 # Footer
 st.divider()
