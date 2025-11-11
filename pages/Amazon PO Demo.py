@@ -99,7 +99,6 @@ location_filter = st.sidebar.multiselect(
 supplier_filter = st.sidebar.multiselect(
     "🏭 Supplier", options=sorted(st.session_state.recs["supplier"].unique()), default=[]
 )
-window_days = st.sidebar.slider("📅 Shortage window (days)", 1, 60, 21)
 
 erp = st.sidebar.selectbox("💼 ERP System", ["SAP", "NetSuite"], index=0)
 env = st.sidebar.selectbox("🌐 Environment", ["Dev", "QA", "Prod"], index=0)
