@@ -103,16 +103,11 @@ supplier_filter = st.sidebar.multiselect(
 erp = st.sidebar.selectbox("💼 ERP System", ["SAP", "NetSuite"], index=0)
 env = st.sidebar.selectbox("🌐 Environment", ["Dev", "QA", "Prod"], index=0)
 
-# Build accountName from ERP + Environment
-if erp == "NetSuite":
-    # fixed value for any NetSuite env (per your rule)
-    accountName_raw = "../../shared/NS_Token account_2018_2_TimToken vld 10.25.2023"
-else:
-    ACCOUNT_MAP = {"Dev": "sap_dev", "QA": "sap_qa", "Prod": "sap_prod"}
-    accountName_raw = ACCOUNT_MAP.get(env, f"sap_{env.lower()}")
-
-# URL-encode for safe query param (encode slashes and spaces)
-accountName_param = quote(accountName_raw, safe="")
+# Always-send static account params (no conditionals)
+NS_ACCOUNT_NAME = "../../shared/NS_Token account_2018_2_TimToken vld 10.25.2023"
+SAP_ACCOUNT_NAME = "SAP_prod"
+NS_account_param = quote(NS_ACCOUNT_NAME, safe="")
+SAP_account_param = quote(SAP_ACCOUNT_NAME, safe="")
 
 st.sidebar.divider()
 st.sidebar.caption("Approving posts one JSON payload to a SnapLogic pipeline which creates the PO and returns status.")
@@ -234,11 +229,15 @@ with st.container(border=True):
             st.write("📤 Posting payload to SnapLogic pipeline endpoint…")
             time.sleep(0.6)
             try:
+                # Always include both query params
                 SL_ENDPOINT = (
                     "https://elastic.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/"
                     "Dylan%20Vetter/DemoBucket/Amazon%20PO%20creation%20Task"
-                    f"?bearer_token=12345&accountName={accountName_param}"
+                    f"?bearer_token=12345"
+                    f"&NS_accountName={NS_account_param}"
+                    f"&SAP_accountName={SAP_account_param}"
                 )
+
                 res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
 
                 # Treat any 2xx as success
