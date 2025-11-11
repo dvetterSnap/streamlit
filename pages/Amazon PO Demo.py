@@ -10,7 +10,7 @@ from urllib.parse import quote
 st.set_page_config(page_title="PO Creation Workbench", layout="wide", page_icon="🛒")
 
 # -----------------------------
-# Custom Styling (SAFE ADDITIONS)
+# Custom Styling
 # -----------------------------
 st.markdown("""
     <style>
@@ -21,17 +21,25 @@ st.markdown("""
         height: 3em;
         font-weight: 600;
     }
-    .stButton>button { border-radius: 8px; height: 3em; font-weight: 500; }
-    [data-testid="stMetricValue"] { font-size: 28px; font-weight: 700; }
+    .stButton>button {
+        border-radius: 8px;
+        height: 3em;
+        font-weight: 500;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 28px;
+        font-weight: 700;
+    }
     h1 {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# Mock data for the demo (replace with your model output)
+# Mock data for the demo
 # -----------------------------
 @st.cache_data
 def load_recommendations():
@@ -79,11 +87,7 @@ def load_recommendations():
             "status": "Pending",
         },
     ]
-    df = pd.DataFrame(data)
-    # placeholders for ERP response enrichment
-    df["internal_id"] = None
-    df["url"] = None
-    return df
+    return pd.DataFrame(data)
 
 if "recs" not in st.session_state:
     st.session_state.recs = load_recommendations()
@@ -100,14 +104,12 @@ supplier_filter = st.sidebar.multiselect(
     "🏭 Supplier", options=sorted(st.session_state.recs["supplier"].unique()), default=[]
 )
 window_days = st.sidebar.slider("📅 Shortage window (days)", 1, 60, 21)
-auto_approve_small = st.sidebar.toggle("✅ Auto-approve tiny orders (< 250 units)", value=False)
 
 erp = st.sidebar.selectbox("💼 ERP System", ["SAP", "NetSuite"], index=0)
 env = st.sidebar.selectbox("🌐 Environment", ["Dev", "QA", "Prod"], index=0)
 
 # Build accountName from ERP + Environment
 if erp == "NetSuite":
-    # fixed value for any NetSuite env (per your rule)
     accountName_raw = "../../shared/NS_Token account_2018_2_TimToken vld 10.25.2023"
 else:
     ACCOUNT_MAP = {"Dev": "sap_dev", "QA": "sap_qa", "Prod": "sap_prod"}
@@ -116,10 +118,8 @@ else:
 # URL-encode for safe query param (encode slashes and spaces)
 accountName_param = quote(accountName_raw, safe="")
 
-dry_run = st.sidebar.toggle("🧪 Dry run (do not call ERP)", value=True)
-
 st.sidebar.divider()
-st.sidebar.caption("💡 Approve posts one JSON payload to a SnapLogic pipeline which creates the PO in the ERP and returns a status.")
+st.sidebar.caption("Approve posts one JSON payload to a SnapLogic pipeline which creates the PO in the ERP and returns a status.")
 
 if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
     st.cache_data.clear()
@@ -134,8 +134,8 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.metric("📋 Pending recommendations", int((st.session_state.recs["status"] == "Pending").sum()))
 with col2:
-    approved_today = len([s for s in st.session_state.recs["status"] if "Created" in str(s)])
-    st.metric("✅ Auto-approved today", approved_today)
+    created = int(st.session_state.recs["status"].astype(str).str.startswith("Created").sum())
+    st.metric("✅ POs created", created)
 with col3:
     failures = int((st.session_state.recs["status"] == "Failed").sum())
     st.metric("⚠️ Failures (24h)", failures)
@@ -149,9 +149,10 @@ if location_filter:
 if supplier_filter:
     df = df[df["supplier"].isin(supplier_filter)]
 
+# Selection model
 st.subheader("📦 Recommendations queue")
-st.data_editor(
-    df[["rec_id","sku","location","shortage_date","recommended_qty","supplier","forecast_gap","reason","status"]],
+selection = st.data_editor(
+    df,
     column_config={
         "rec_id": st.column_config.Column("🆔 Rec ID", disabled=True),
         "sku": st.column_config.Column("📦 SKU", disabled=True),
@@ -163,7 +164,10 @@ st.data_editor(
         "reason": st.column_config.Column("💡 Reason / Driver", disabled=True),
         "status": st.column_config.Column("✓ Status", disabled=True),
     },
-    hide_index=True, use_container_width=True, num_rows="dynamic", disabled=True,
+    hide_index=True,
+    use_container_width=True,
+    num_rows="dynamic",
+    disabled=True,
 )
 
 # Row chooser
@@ -190,6 +194,17 @@ with st.container(border=True):
     st.write(
         f"**🏭 Supplier:** {chosen['supplier']}  |  **💡 Reason:** {chosen['reason']}  |  **📊 Forecast gap:** {int(chosen['forecast_gap'])}"
     )
+
+    # Simple warnings
+    warnings = []
+    if chosen["recommended_qty"] > 5000:
+        warnings.append("⚠️ Large quantity order - requires additional approval")
+    if chosen["on_hand"] < chosen["safety_stock"] * 0.2:
+        warnings.append("🔴 Critical stock level - expedited shipping recommended")
+    if warnings:
+        st.markdown("---")
+        for w in warnings:
+            st.warning(w)
 
     st.markdown("---")
     st.markdown("**📝 Business justification**")
@@ -221,7 +236,6 @@ with st.container(border=True):
             "justification": justification,
             "erp": erp,
             "environment": env,
-            "dry_run": dry_run,
         }
 
     with colA:
@@ -229,10 +243,7 @@ with st.container(border=True):
     with colB:
         reject = st.button("❌ Reject", use_container_width=True)
     with colC:
-        if dry_run:
-            st.caption("🧪 **Dry Run Mode:** No actual PO will be created")
-        else:
-            st.caption("⚡ **Live Mode:** Approving will call the SnapLogic pipeline")
+        st.caption("Approving will call the SnapLogic pipeline and return a PO number on success.")
 
     if approve:
         payload = build_payload(chosen)
@@ -247,44 +258,15 @@ with st.container(border=True):
                 )
                 res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
 
-                # Treat any 2xx as success
+                # Any 2xx = success
                 if 200 <= res.status_code < 300:
-                    # Try to extract internal_id and url if present
-                    internal_id, link_url = None, None
-                    try:
-                        body = res.json()
-                        # body may be a list or a dict
-                        if isinstance(body, list) and body:
-                            body = body[0]
-                        if isinstance(body, dict):
-                            internal_id = body.get("internal_id") or body.get("po_number") or body.get("id")
-                            link_url = body.get("url")
-                    except Exception:
-                        pass
-
-                    # Fallback display string
-                    po_number = internal_id or "PO-CREATED"
-
-                    # Log what happened
+                    po_number = "PO-CREATED"
                     st.write({
                         "endpoint": SL_ENDPOINT,
                         "status_code": res.status_code,
-                        "accountName_raw": accountName_raw,
-                        "parsed_internal_id": internal_id,
-                        "parsed_url": link_url
+                        "accountName_raw": accountName_raw
                     })
-
-                    # Update in-memory table
-                    mask = st.session_state.recs["rec_id"] == chosen["rec_id"]
-                    st.session_state.recs.loc[mask, "status"] = f"Created: {po_number}"
-                    if internal_id:
-                        st.session_state.recs.loc[mask, "internal_id"] = internal_id
-                    if link_url:
-                        st.session_state.recs.loc[mask, "url"] = link_url
-
                     status.update(label="✅ PO created", state="complete")
-                    st.toast("🎉 PO created", icon="✅")
-                    st.rerun()
                 else:
                     raise Exception(f"Non-2xx status code: {res.status_code}")
 
@@ -297,6 +279,13 @@ with st.container(border=True):
                 status.update(label="Failed", state="error")
                 st.stop()
 
+        # Update in-memory table on success
+        st.session_state.recs.loc[
+            st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
+        ] = f"Created: {po_number}"
+        st.toast("🎉 PO created", icon="✅")
+        st.rerun()
+
     if reject:
         st.session_state.recs.loc[
             st.session_state.recs["rec_id"] == chosen["rec_id"], "status"
@@ -305,19 +294,11 @@ with st.container(border=True):
         st.rerun()
 
 # -----------------------------
-# Activity log (now with internal_id + clickable URL)
+# Activity log
 # -----------------------------
 st.subheader("📜 Activity log")
-log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status", "internal_id", "url"]]
-st.dataframe(
-    log_df,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "url": st.column_config.LinkColumn("URL", display_text="Open in ERP"),
-        "internal_id": st.column_config.Column("ERP Ref ID"),
-    },
-)
+log_df = st.session_state.recs.copy()[["rec_id", "sku", "location", "status"]]
+st.dataframe(log_df, use_container_width=True, hide_index=True)
 
 # Footer
 st.divider()
@@ -328,16 +309,3 @@ with col2:
     st.caption(f"📅 Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
 with col3:
     st.caption(f"🌐 Environment: {env} | ERP: {erp}")
-
-# -----------------------------
-# Notes for integration
-# -----------------------------
-with st.expander("🔧 Integration notes (hide in final demo)"):
-    st.markdown(
-        """
-        - For NetSuite (any environment) the `accountName` param is a shared token value and is URL-encoded.
-        - For SAP, `accountName` is mapped by environment (sap_dev, sap_qa, sap_prod).
-        - Success is determined solely by HTTP 2xx status.
-        - If the response includes `internal_id` and `url`, they’re written to the activity log and the URL is clickable.
-        """
-    )
