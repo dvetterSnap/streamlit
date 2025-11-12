@@ -238,7 +238,7 @@ with st.container(border=True):
                     f"&SAP_accountName={SAP_account_param}"
                 )
 
-                res = requests.post(SL_ENDPOINT, json=payload, timeout=30)
+                res = requests.post(SL_ENDPOINT, json=payload, timeout=60)
 
                 # Treat any 2xx as success
                 if 200 <= res.status_code < 300:
