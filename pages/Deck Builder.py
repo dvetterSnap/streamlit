@@ -1,644 +1,936 @@
-import io
+from flask import Flask, request, jsonify, send_file, render_template_string
+import subprocess
 import json
 import os
-
+import tempfile
 import anthropic
-import streamlit as st
-from pptx import Presentation
-from pptx.dml.color import RGBColor
-from pptx.util import Inches, Pt
-from pptx.enum.text import PP_ALIGN
 
-# -----------------------------
-# Page config
-# -----------------------------
-st.set_page_config(page_title="Deck Builder", layout="wide", page_icon="📊")
+app = Flask(__name__)
 
-# -----------------------------
-# Custom Styling
-# -----------------------------
-st.markdown("""
-    <style>
-    .stButton>button[kind="primary"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        border-radius: 8px;
-        height: 3em;
-        font-weight: 600;
+os.environ["ANTHROPIC_API_KEY"] = "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"
+
+HTML_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SnapLogic Pitch Deck Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0a0f2e 0%, #0d2352 50%, #0a1a3e 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
     }
-    .stButton>button { border-radius: 8px; height: 3em; font-weight: 500; }
-    h1 {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+
+    .container {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      padding: 48px;
+      width: 100%;
+      max-width: 780px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.5);
     }
-    </style>
-""", unsafe_allow_html=True)
 
-# -----------------------------
-# Constants
-# -----------------------------
-SNAPLOGIC_PURPLE = RGBColor(0x4B, 0x2E, 0x83)
-SNAPLOGIC_DARK = RGBColor(0x1A, 0x1A, 0x2E)
-WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-LIGHT_GRAY = RGBColor(0xF5, 0xF5, 0xF5)
-ACCENT_BLUE = RGBColor(0x66, 0x7E, 0xEA)
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 36px;
+    }
 
-SNAPLOGIC_SOLUTIONS = [
-    "Agent Creator (AI/LLM Agents)",
-    "Data Integration & ETL/ELT",
-    "API Management & Integration",
-    "Data Pipeline Automation",
-    "Cloud Data Migration",
-    "Application Integration",
-    "B2B / EDI Integration",
-    "Self-Service Data Preparation",
-    "Real-Time Data Streaming",
-    "Intelligent Document Processing",
-]
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #00d4ff, #0077ff);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 900;
+      color: white;
+      flex-shrink: 0;
+    }
 
-INDUSTRIES = [
-    "Financial Services & Banking",
-    "Healthcare & Life Sciences",
-    "Retail & E-Commerce",
-    "Manufacturing & Supply Chain",
-    "Technology & SaaS",
-    "Media & Entertainment",
-    "Energy & Utilities",
-    "Government & Public Sector",
-    "Education",
-    "Professional Services",
-    "Other",
-]
+    .logo-text h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.3px;
+    }
 
+    .logo-text p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      margin-top: 2px;
+    }
 
-# -----------------------------
-# Claude content generation
-# -----------------------------
-def generate_slide_content(
-    customer_name: str,
-    industry: str,
-    pain_points: str,
-    solutions: list[str],
-    additional_context: str,
-) -> dict:
-    """Call Claude to generate structured slide content."""
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    client = anthropic.Anthropic(api_key=api_key)
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.7);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
 
-    solutions_str = "\n".join(f"- {s}" for s in solutions)
+    textarea {
+      width: 100%;
+      padding: 16px 18px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      color: #ffffff;
+      font-size: 14.5px;
+      font-family: inherit;
+      line-height: 1.6;
+      resize: vertical;
+      transition: all 0.2s;
+      outline: none;
+    }
 
-    prompt = f"""You are a SnapLogic solutions expert and sales engineer creating a customer-facing PowerPoint presentation.
+    textarea::placeholder { color: rgba(255,255,255,0.3); }
+    textarea:focus { border-color: #00d4ff; background: rgba(255,255,255,0.1); box-shadow: 0 0 0 3px rgba(0,212,255,0.1); }
 
-Customer: {customer_name}
-Industry: {industry}
-Pain Points / Challenges:
-{pain_points}
+    .field { margin-bottom: 22px; }
 
-Relevant SnapLogic Solutions:
-{solutions_str}
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.08);
+      margin: 28px 0;
+    }
 
-Additional Context:
-{additional_context if additional_context else "None provided."}
+    .options-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
 
-Generate content for a polished, customer-ready presentation with the following slides. Return ONLY valid JSON matching this exact structure:
+    .option-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
 
-{{
-  "title_slide": {{
-    "title": "...",
-    "subtitle": "..."
-  }},
-  "agenda_slide": {{
-    "title": "Today's Agenda",
-    "items": ["...", "...", "...", "...", "..."]
-  }},
-  "customer_challenges_slide": {{
-    "title": "...",
-    "challenges": [
-      {{"heading": "...", "detail": "..."}},
-      {{"heading": "...", "detail": "..."}},
-      {{"heading": "...", "detail": "..."}}
-    ]
-  }},
-  "snaplogic_overview_slide": {{
-    "title": "Why SnapLogic",
-    "tagline": "...",
-    "points": [
-      {{"heading": "...", "detail": "..."}},
-      {{"heading": "...", "detail": "..."}},
-      {{"heading": "...", "detail": "..."}}
-    ]
-  }},
-  "solution_slides": [
-    {{
-      "solution_name": "...",
-      "title": "...",
-      "value_prop": "...",
-      "capabilities": ["...", "...", "..."],
-      "customer_outcome": "..."
-    }}
-  ],
-  "roi_slide": {{
-    "title": "Expected Business Impact",
-    "metrics": [
-      {{"stat": "...", "description": "..."}},
-      {{"stat": "...", "description": "..."}},
-      {{"stat": "...", "description": "..."}}
-    ],
-    "summary": "..."
-  }},
-  "next_steps_slide": {{
-    "title": "Recommended Next Steps",
-    "steps": [
-      {{"step": "Step 1", "action": "...", "timeline": "..."}},
-      {{"step": "Step 2", "action": "...", "timeline": "..."}},
-      {{"step": "Step 3", "action": "...", "timeline": "..."}}
-    ]
-  }},
-  "closing_slide": {{
-    "title": "...",
-    "message": "...",
-    "contact_prompt": "Let's connect and get started."
-  }}
-}}
+    select {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      margin-top: 6px;
+    }
 
-Guidelines:
-- Be specific to {customer_name} and their {industry} context
-- Connect pain points directly to SnapLogic capabilities
-- Use confident, customer-facing language
-- Keep bullet points concise (under 12 words each)
-- ROI stats should be realistic and industry-appropriate
-- Create one solution_slide per selected solution (max 4 slides if more than 4 solutions selected)
+    select option { background: #0d2352; color: white; }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #00d4ff 0%, #0077ff 100%);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.3px;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 32px rgba(0,119,255,0.4); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .status {
+      margin-top: 22px;
+      padding: 16px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      display: none;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status.loading {
+      display: flex;
+      background: rgba(0,119,255,0.15);
+      border: 1px solid rgba(0,119,255,0.3);
+      color: #80c8ff;
+    }
+
+    .status.success {
+      display: flex;
+      background: rgba(0,200,100,0.15);
+      border: 1px solid rgba(0,200,100,0.3);
+      color: #80ffb8;
+    }
+
+    .status.error {
+      display: flex;
+      background: rgba(255,80,80,0.15);
+      border: 1px solid rgba(255,80,80,0.3);
+      color: #ffaaaa;
+    }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #00c864, #00a850);
+      border-radius: 10px;
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .download-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,200,100,0.4); }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      background: rgba(0,212,255,0.15);
+      border: 1px solid rgba(0,212,255,0.3);
+      border-radius: 20px;
+      font-size: 11px;
+      color: #00d4ff;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="logo-area">
+    <div class="logo-icon">SL</div>
+    <div class="logo-text">
+      <h1>SnapLogic Pitch Deck Generator</h1>
+      <p>AI-powered customer presentations in seconds</p>
+    </div>
+  </div>
+
+  <span class="badge">✦ Powered by Claude AI</span>
+
+  <div class="field">
+    <label>About the Customer</label>
+    <textarea id="customer" rows="5" placeholder="e.g. Acme Corp is a Fortune 500 retail company with 200+ locations. They struggle with siloed data across SAP, Salesforce, and legacy ERPs. Their IT team of 40 spends most time on manual integrations..."></textarea>
+  </div>
+
+  <div class="field">
+    <label>How SnapLogic Can Help</label>
+    <textarea id="snaplogic" rows="5" placeholder="e.g. SnapLogic can unify their data pipelines with pre-built Snaps for SAP and Salesforce, reduce integration time by 80%, enable real-time inventory visibility, and empower citizen integrators with the low-code designer..."></textarea>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="options-row">
+    <div class="option-card">
+      <label>Slide Count</label>
+      <select id="slideCount">
+        <option value="6">6 Slides (Quick)</option>
+        <option value="8" selected>8 Slides (Standard)</option>
+        <option value="10">10 Slides (Full)</option>
+      </select>
+    </div>
+    <div class="option-card">
+      <label>Tone</label>
+      <select id="tone">
+        <option value="executive">Executive</option>
+        <option value="technical">Technical</option>
+        <option value="consultative" selected>Consultative</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn" onclick="generateDeck()" id="genBtn">
+    ✦ Generate Pitch Deck
+  </button>
+
+  <div class="status loading" id="statusLoading">
+    <div class="spinner"></div>
+    <span id="statusText">Generating your deck with AI...</span>
+  </div>
+
+  <div class="status success" id="statusSuccess">
+    <span>✓</span>
+    <div>
+      <div>Your pitch deck is ready!</div>
+      <a class="download-btn" id="downloadLink" href="#" download>
+        ⬇ Download PPTX
+      </a>
+    </div>
+  </div>
+
+  <div class="status error" id="statusError">
+    <span>✕</span>
+    <span id="errorText">Something went wrong. Please try again.</span>
+  </div>
+</div>
+
+<script>
+async function generateDeck() {
+  const customer = document.getElementById('customer').value.trim();
+  const snaplogic = document.getElementById('snaplogic').value.trim();
+  const slideCount = document.getElementById('slideCount').value;
+  const tone = document.getElementById('tone').value;
+
+  if (!customer || !snaplogic) {
+    alert('Please fill in both fields.');
+    return;
+  }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+
+  document.getElementById('statusLoading').style.display = 'flex';
+  document.getElementById('statusSuccess').style.display = 'none';
+  document.getElementById('statusError').style.display = 'none';
+
+  const steps = [
+    'Analyzing customer context...',
+    'Crafting slide structure...',
+    'Generating visual content...',
+    'Building your PPTX...'
+  ];
+  let step = 0;
+  const statusText = document.getElementById('statusText');
+  const interval = setInterval(() => {
+    step = (step + 1) % steps.length;
+    statusText.textContent = steps[step];
+  }, 3000);
+
+  try {
+    const resp = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer, snaplogic, slideCount: parseInt(slideCount), tone })
+    });
+
+    clearInterval(interval);
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Server error');
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    document.getElementById('downloadLink').href = url;
+    document.getElementById('downloadLink').download = 'SnapLogic_Pitch_Deck.pptx';
+
+    document.getElementById('statusLoading').style.display = 'none';
+    document.getElementById('statusSuccess').style.display = 'flex';
+  } catch (e) {
+    clearInterval(interval);
+    document.getElementById('statusLoading').style.display = 'none';
+    document.getElementById('statusError').style.display = 'flex';
+    document.getElementById('errorText').textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✦ Generate Pitch Deck';
+  }
+}
+</script>
+</body>
+</html>
 """
 
+SLIDE_GEN_PROMPT = """You are a SnapLogic sales expert creating a professional pitch deck.
+
+Customer Info:
+{customer}
+
+How SnapLogic Can Help:
+{snaplogic}
+
+Create {slide_count} slides for a {tone} pitch deck. Output ONLY valid JSON (no markdown, no explanation).
+
+Return this exact structure:
+{{
+  "company_name": "extracted or inferred company name",
+  "slides": [
+    {{
+      "type": "title",
+      "title": "slide title",
+      "subtitle": "subtitle text",
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "challenge",
+      "title": "slide title",
+      "points": ["challenge 1", "challenge 2", "challenge 3"],
+      "stat": "impactful statistic or insight",
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "solution",
+      "title": "slide title", 
+      "points": ["solution 1", "solution 2", "solution 3", "solution 4"],
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "value",
+      "title": "slide title",
+      "metrics": [
+        {{"label": "metric name", "value": "X%", "description": "what it means"}},
+        {{"label": "metric name", "value": "Xh", "description": "what it means"}},
+        {{"label": "metric name", "value": "Xx", "description": "what it means"}}
+      ],
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "capabilities",
+      "title": "slide title",
+      "items": [
+        {{"icon": "🔗", "title": "capability", "desc": "short description"}},
+        {{"icon": "⚡", "title": "capability", "desc": "short description"}},
+        {{"icon": "🔒", "title": "capability", "desc": "short description"}},
+        {{"icon": "📊", "title": "capability", "desc": "short description"}}
+      ],
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "use_cases",
+      "title": "slide title",
+      "use_cases": [
+        {{"title": "use case 1", "desc": "description"}},
+        {{"title": "use case 2", "desc": "description"}},
+        {{"title": "use case 3", "desc": "description"}}
+      ],
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "why_snaplogic",
+      "title": "Why SnapLogic",
+      "reasons": ["reason 1", "reason 2", "reason 3", "reason 4"],
+      "tagline": "compelling one-liner",
+      "presenter_notes": "brief speaker note"
+    }},
+    {{
+      "type": "next_steps",
+      "title": "Next Steps",
+      "steps": [
+        {{"num": "01", "action": "action title", "desc": "description"}},
+        {{"num": "02", "action": "action title", "desc": "description"}},
+        {{"num": "03", "action": "action title", "desc": "description"}}
+      ],
+      "cta": "call to action text",
+      "presenter_notes": "brief speaker note"
+    }}
+  ]
+}}
+
+Make ALL content specific to this customer's industry and needs. Be concrete and compelling.
+For slide_count < 8, merge or drop less critical slides. Always keep title, solution, value, and next_steps.
+"""
+
+PPTX_TEMPLATE = """
+const pptxgen = require('pptxgenjs');
+const fs = require('fs');
+
+const data = {data};
+
+async function buildDeck() {{
+  const pres = new pptxgen();
+  pres.layout = 'LAYOUT_16x9';
+  pres.title = 'SnapLogic - ' + data.company_name;
+
+  // Color palette - Ocean Executive
+  const C = {{
+    navy:    '0A1628',
+    blue:    '0A4FA8',
+    cyan:    '00D4FF',
+    white:   'FFFFFF',
+    offWhite:'F0F4FF',
+    lightBg: 'EBF2FF',
+    muted:   '8BA3C7',
+    dark:    '061020',
+    accent:  '00D4FF',
+    green:   '00C864',
+  }};
+
+  function makeShadow() {{
+    return {{ type: 'outer', color: '000000', opacity: 0.18, blur: 8, offset: 3, angle: 135 }};
+  }}
+
+  for (const slide_data of data.slides) {{
+    const slide = pres.addSlide();
+
+    if (slide_data.type === 'title') {{
+      // Full dark background
+      slide.background = {{ color: C.navy }};
+
+      // Left accent bar
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 0.35, h: 5.625,
+        fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+      }});
+
+      // Right decorative block
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 6.5, y: 0, w: 3.5, h: 5.625,
+        fill: {{ color: '061630' }}, line: {{ type: 'none' }}
+      }});
+
+      // Geometric accent
+      slide.addShape(pres.shapes.OVAL, {{
+        x: 7.5, y: 1.0, w: 2.2, h: 2.2,
+        fill: {{ color: C.cyan, transparency: 85 }},
+        line: {{ color: C.cyan, width: 1.5, transparency: 60 }}
+      }});
+      slide.addShape(pres.shapes.OVAL, {{
+        x: 8.0, y: 2.5, w: 1.4, h: 1.4,
+        fill: {{ color: C.blue, transparency: 70 }},
+        line: {{ type: 'none' }}
+      }});
+
+      // SnapLogic label
+      slide.addText('SNAPLOGIC', {{
+        x: 0.6, y: 0.4, w: 5.5, h: 0.35,
+        fontSize: 11, color: C.cyan, bold: true, charSpacing: 4,
+        margin: 0
+      }});
+
+      // Main title
+      slide.addText(slide_data.title, {{
+        x: 0.6, y: 1.0, w: 5.6, h: 2.0,
+        fontSize: 38, color: C.white, bold: true,
+        wrap: true, valign: 'top', margin: 0
+      }});
+
+      // Subtitle
+      slide.addText(slide_data.subtitle || '', {{
+        x: 0.6, y: 3.2, w: 5.6, h: 0.9,
+        fontSize: 15, color: C.muted, wrap: true, margin: 0
+      }});
+
+      // Bottom bar
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0.35, y: 5.1, w: 6.15, h: 0.05,
+        fill: {{ color: C.blue }}, line: {{ type: 'none' }}
+      }});
+      slide.addText('Intelligent Integration Platform', {{
+        x: 0.6, y: 5.15, w: 5.5, h: 0.3,
+        fontSize: 10, color: C.muted, margin: 0
+      }});
+
+    }} else if (slide_data.type === 'challenge') {{
+      slide.background = {{ color: C.white }};
+
+      // Top bar
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 10, h: 0.9,
+        fill: {{ color: C.navy }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title, {{
+        x: 0.4, y: 0.12, w: 7, h: 0.65,
+        fontSize: 22, color: C.white, bold: true, margin: 0, valign: 'middle'
+      }});
+      slide.addText('CHALLENGE', {{
+        x: 7.5, y: 0.25, w: 2.1, h: 0.4,
+        fontSize: 9, color: C.cyan, bold: true, charSpacing: 3,
+        align: 'right', margin: 0
+      }});
+
+      // Left: pain points
+      const points = (slide_data.points || []).slice(0, 4);
+      points.forEach((pt, i) => {{
+        const yPos = 1.1 + i * 0.9;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: 0.4, y: yPos, w: 4.8, h: 0.72,
+          fill: {{ color: C.lightBg }}, line: {{ color: C.blue, width: 0.5 }},
+          shadow: makeShadow()
+        }});
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: 0.4, y: yPos, w: 0.06, h: 0.72,
+          fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+        }});
+        slide.addText(pt, {{
+          x: 0.62, y: yPos, w: 4.4, h: 0.72,
+          fontSize: 13, color: C.navy, wrap: true, valign: 'middle', margin: 6
+        }});
+      }});
+
+      // Right: stat card
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 5.7, y: 1.1, w: 3.9, h: 4.1,
+        fill: {{ color: C.navy }}, line: {{ type: 'none' }},
+        shadow: makeShadow()
+      }});
+      slide.addShape(pres.shapes.OVAL, {{
+        x: 6.5, y: 1.4, w: 1.8, h: 1.8,
+        fill: {{ color: C.cyan, transparency: 88 }},
+        line: {{ color: C.cyan, width: 1, transparency: 50 }}
+      }});
+      slide.addText('KEY INSIGHT', {{
+        x: 5.9, y: 1.25, w: 3.5, h: 0.3,
+        fontSize: 9, color: C.cyan, bold: true, charSpacing: 2, align: 'center', margin: 0
+      }});
+      slide.addText(slide_data.stat || '', {{
+        x: 5.9, y: 1.7, w: 3.5, h: 3.2,
+        fontSize: 14.5, color: C.white, align: 'center', valign: 'middle', wrap: true, margin: 10
+      }});
+
+    }} else if (slide_data.type === 'solution') {{
+      slide.background = {{ color: C.offWhite }};
+
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 10, h: 0.9,
+        fill: {{ color: C.blue }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title, {{
+        x: 0.4, y: 0.12, w: 8, h: 0.65,
+        fontSize: 22, color: C.white, bold: true, margin: 0, valign: 'middle'
+      }});
+      slide.addText('SOLUTION', {{
+        x: 8.0, y: 0.25, w: 1.7, h: 0.4,
+        fontSize: 9, color: C.cyan, bold: true, charSpacing: 3, align: 'right', margin: 0
+      }});
+
+      // 2x2 grid
+      const pts = (slide_data.points || []).slice(0, 4);
+      const grid = [
+        {{ x: 0.4, y: 1.1 }}, {{ x: 5.2, y: 1.1 }},
+        {{ x: 0.4, y: 3.2 }}, {{ x: 5.2, y: 3.2 }}
+      ];
+      const icons = ['🔗','⚡','🛡️','📊'];
+      pts.forEach((pt, i) => {{
+        const g = grid[i];
+        if (!g) return;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: g.x, y: g.y, w: 4.5, h: 1.8,
+          fill: {{ color: C.white }}, line: {{ color: '00000010' }},
+          shadow: makeShadow()
+        }});
+        slide.addText(icons[i] || '✓', {{
+          x: g.x + 0.15, y: g.y + 0.15, w: 0.55, h: 0.55,
+          fontSize: 18, align: 'center', margin: 0
+        }});
+        slide.addText(pt, {{
+          x: g.x + 0.2, y: g.y + 0.75, w: 4.1, h: 0.95,
+          fontSize: 12.5, color: C.navy, wrap: true, valign: 'top', margin: 4
+        }});
+      }});
+
+    }} else if (slide_data.type === 'value') {{
+      slide.background = {{ color: C.navy }};
+
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 0.25, h: 5.625,
+        fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title, {{
+        x: 0.5, y: 0.25, w: 9, h: 0.6,
+        fontSize: 26, color: C.white, bold: true, margin: 0
+      }});
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0.5, y: 0.88, w: 9, h: 0.03,
+        fill: {{ color: C.blue }}, line: {{ type: 'none' }}
+      }});
+
+      const metrics = (slide_data.metrics || []).slice(0, 3);
+      const spacing = 3.0;
+      metrics.forEach((m, i) => {{
+        const xPos = 0.5 + i * spacing;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: xPos, y: 1.1, w: 2.7, h: 3.8,
+          fill: {{ color: '0D2040' }}, line: {{ color: C.blue, width: 0.5 }},
+          shadow: makeShadow()
+        }});
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: xPos, y: 1.1, w: 2.7, h: 0.06,
+          fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+        }});
+        slide.addText(m.value || '', {{
+          x: xPos, y: 1.4, w: 2.7, h: 1.2,
+          fontSize: 44, color: C.cyan, bold: true, align: 'center', valign: 'middle', margin: 0
+        }});
+        slide.addText(m.label || '', {{
+          x: xPos + 0.15, y: 2.75, w: 2.4, h: 0.45,
+          fontSize: 12, color: C.white, bold: true, align: 'center', wrap: true, margin: 0
+        }});
+        slide.addText(m.description || '', {{
+          x: xPos + 0.12, y: 3.3, w: 2.46, h: 1.4,
+          fontSize: 11, color: C.muted, align: 'center', wrap: true, margin: 6
+        }});
+      }});
+
+    }} else if (slide_data.type === 'capabilities') {{
+      slide.background = {{ color: C.white }};
+
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 10, h: 0.9,
+        fill: {{ color: C.navy }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title, {{
+        x: 0.4, y: 0.12, w: 8, h: 0.65,
+        fontSize: 22, color: C.white, bold: true, margin: 0, valign: 'middle'
+      }});
+      slide.addText('PLATFORM', {{
+        x: 8.0, y: 0.25, w: 1.7, h: 0.4,
+        fontSize: 9, color: C.cyan, bold: true, charSpacing: 3, align: 'right', margin: 0
+      }});
+
+      const items = (slide_data.items || []).slice(0, 4);
+      items.forEach((item, i) => {{
+        const xPos = 0.4 + i * 2.4;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: xPos, y: 1.05, w: 2.15, h: 4.2,
+          fill: {{ color: C.lightBg }}, line: {{ color: C.blue, width: 0.4 }},
+          shadow: makeShadow()
+        }});
+        slide.addShape(pres.shapes.OVAL, {{
+          x: xPos + 0.575, y: 1.25, w: 1.0, h: 1.0,
+          fill: {{ color: C.navy }}, line: {{ type: 'none' }}
+        }});
+        slide.addText(item.icon || '●', {{
+          x: xPos + 0.575, y: 1.25, w: 1.0, h: 1.0,
+          fontSize: 20, align: 'center', valign: 'middle', margin: 0
+        }});
+        slide.addText(item.title || '', {{
+          x: xPos + 0.1, y: 2.45, w: 1.95, h: 0.55,
+          fontSize: 12, color: C.navy, bold: true, align: 'center', wrap: true, margin: 0
+        }});
+        slide.addText(item.desc || '', {{
+          x: xPos + 0.1, y: 3.1, w: 1.95, h: 1.9,
+          fontSize: 10.5, color: '334466', align: 'center', wrap: true, margin: 6
+        }});
+      }});
+
+    }} else if (slide_data.type === 'use_cases') {{
+      slide.background = {{ color: C.offWhite }};
+
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 10, h: 0.9,
+        fill: {{ color: C.blue }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title, {{
+        x: 0.4, y: 0.12, w: 8, h: 0.65,
+        fontSize: 22, color: C.white, bold: true, margin: 0, valign: 'middle'
+      }});
+      slide.addText('USE CASES', {{
+        x: 7.8, y: 0.25, w: 1.9, h: 0.4,
+        fontSize: 9, color: C.cyan, bold: true, charSpacing: 3, align: 'right', margin: 0
+      }});
+
+      const cases = (slide_data.use_cases || []).slice(0, 3);
+      cases.forEach((uc, i) => {{
+        const yPos = 1.1 + i * 1.45;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: 0.4, y: yPos, w: 9.2, h: 1.2,
+          fill: {{ color: C.white }}, line: {{ color: '00000008' }},
+          shadow: makeShadow()
+        }});
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: 0.4, y: yPos, w: 0.07, h: 1.2,
+          fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+        }});
+        slide.addText('0' + (i + 1), {{
+          x: 0.6, y: yPos, w: 0.7, h: 1.2,
+          fontSize: 24, color: C.blue, bold: true, valign: 'middle', align: 'center', margin: 0
+        }});
+        slide.addText(uc.title || '', {{
+          x: 1.4, y: yPos + 0.1, w: 7.8, h: 0.4,
+          fontSize: 14, color: C.navy, bold: true, margin: 0
+        }});
+        slide.addText(uc.desc || '', {{
+          x: 1.4, y: yPos + 0.52, w: 7.8, h: 0.58,
+          fontSize: 12, color: '334466', wrap: true, margin: 0
+        }});
+      }});
+
+    }} else if (slide_data.type === 'why_snaplogic') {{
+      slide.background = {{ color: C.navy }};
+
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 10, h: 0.9,
+        fill: {{ color: C.blue }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title || 'Why SnapLogic', {{
+        x: 0.4, y: 0.12, w: 8, h: 0.65,
+        fontSize: 22, color: C.white, bold: true, margin: 0, valign: 'middle'
+      }});
+
+      const reasons = (slide_data.reasons || []).slice(0, 4);
+      reasons.forEach((r, i) => {{
+        const yPos = 1.1 + i * 1.05;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: 0.5, y: yPos, w: 9.0, h: 0.85,
+          fill: {{ color: '0D2040' }}, line: {{ color: C.blue, width: 0.4 }},
+          shadow: makeShadow()
+        }});
+        slide.addShape(pres.shapes.OVAL, {{
+          x: 0.65, y: yPos + 0.17, w: 0.52, h: 0.52,
+          fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+        }});
+        slide.addText('✓', {{
+          x: 0.65, y: yPos + 0.17, w: 0.52, h: 0.52,
+          fontSize: 11, color: C.navy, bold: true, align: 'center', valign: 'middle', margin: 0
+        }});
+        slide.addText(r, {{
+          x: 1.35, y: yPos, w: 7.9, h: 0.85,
+          fontSize: 13.5, color: C.white, valign: 'middle', wrap: true, margin: 0
+        }});
+      }});
+
+      slide.addText(slide_data.tagline || '', {{
+        x: 0.5, y: 5.1, w: 9.0, h: 0.4,
+        fontSize: 12, color: C.cyan, italic: true, align: 'center', margin: 0
+      }});
+
+    }} else if (slide_data.type === 'next_steps') {{
+      slide.background = {{ color: C.white }};
+
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 0, w: 10, h: 0.9,
+        fill: {{ color: C.navy }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.title || 'Next Steps', {{
+        x: 0.4, y: 0.12, w: 8, h: 0.65,
+        fontSize: 22, color: C.white, bold: true, margin: 0, valign: 'middle'
+      }});
+      slide.addText('ACTION PLAN', {{
+        x: 7.5, y: 0.25, w: 2.2, h: 0.4,
+        fontSize: 9, color: C.cyan, bold: true, charSpacing: 3, align: 'right', margin: 0
+      }});
+
+      const steps = (slide_data.steps || []).slice(0, 3);
+      steps.forEach((s, i) => {{
+        const xPos = 0.4 + i * 3.2;
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: xPos, y: 1.1, w: 2.9, h: 3.6,
+          fill: {{ color: C.lightBg }}, line: {{ color: C.blue, width: 0.4 }},
+          shadow: makeShadow()
+        }});
+        slide.addShape(pres.shapes.RECTANGLE, {{
+          x: xPos, y: 1.1, w: 2.9, h: 0.06,
+          fill: {{ color: C.cyan }}, line: {{ type: 'none' }}
+        }});
+        slide.addText(s.num || String(i+1).padStart(2,'0'), {{
+          x: xPos, y: 1.2, w: 2.9, h: 0.9,
+          fontSize: 40, color: C.blue, bold: true, align: 'center', margin: 0
+        }});
+        slide.addText(s.action || '', {{
+          x: xPos + 0.15, y: 2.2, w: 2.6, h: 0.6,
+          fontSize: 13, color: C.navy, bold: true, align: 'center', wrap: true, margin: 0
+        }});
+        slide.addText(s.desc || '', {{
+          x: xPos + 0.15, y: 2.9, w: 2.6, h: 1.7,
+          fontSize: 11, color: '334466', align: 'center', wrap: true, margin: 6
+        }});
+      }});
+
+      // CTA bar
+      slide.addShape(pres.shapes.RECTANGLE, {{
+        x: 0, y: 4.9, w: 10, h: 0.725,
+        fill: {{ color: C.navy }}, line: {{ type: 'none' }}
+      }});
+      slide.addText(slide_data.cta || 'Ready to transform your integrations?', {{
+        x: 0.5, y: 4.9, w: 9, h: 0.725,
+        fontSize: 15, color: C.cyan, bold: true, align: 'center', valign: 'middle', margin: 0
+      }});
+    }}
+  }}
+
+  await pres.writeFile({{ fileName: '/tmp/snaplogic_deck.pptx' }});
+  console.log('DONE');
+}}
+
+buildDeck().catch(e => {{ console.error(e); process.exit(1); }});
+"""
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_PAGE)
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    data = request.json
+    customer = data.get('customer', '')
+    snaplogic = data.get('snaplogic', '')
+    slide_count = data.get('slideCount', 8)
+    tone = data.get('tone', 'consultative')
+
+    # Use Claude to generate slide content
+    client = anthropic.Anthropic()
+    
+    prompt = SLIDE_GEN_PROMPT.format(
+        customer=customer,
+        snaplogic=snaplogic,
+        slide_count=slide_count,
+        tone=tone
+    )
+    
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-opus-4-6",
         max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": prompt}]
     )
-
+    
     raw = message.content[0].text.strip()
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    return json.loads(raw)
-
-
-# -----------------------------
-# PowerPoint builder
-# -----------------------------
-def _set_slide_background(slide, color: RGBColor):
-    from pptx.oxml.ns import qn
-    from lxml import etree
-
-    bg = slide.background
-    fill = bg.fill
-    fill.solid()
-    fill.fore_color.rgb = color
-
-
-def _add_text_box(slide, text, left, top, width, height, font_size, bold=False,
-                  color=WHITE, align=PP_ALIGN.LEFT, wrap=True):
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = wrap
-    p = tf.paragraphs[0]
-    p.alignment = align
-    run = p.add_run()
-    run.text = text
-    run.font.size = Pt(font_size)
-    run.font.bold = bold
-    run.font.color.rgb = color
-    return txBox
-
-
-def _add_bullet_paragraph(tf, text, font_size=14, bold=False, color=WHITE, indent_level=1):
-    from pptx.util import Pt
-    p = tf.add_paragraph()
-    p.level = indent_level
-    run = p.add_run()
-    run.text = text
-    run.font.size = Pt(font_size)
-    run.font.bold = bold
-    run.font.color.rgb = color
-    return p
-
-
-def build_presentation(content: dict, customer_name: str) -> bytes:
-    prs = Presentation()
-    prs.slide_width = Inches(13.33)
-    prs.slide_height = Inches(7.5)
-
-    blank_layout = prs.slide_layouts[6]  # completely blank
-
-    W = prs.slide_width
-    H = prs.slide_height
-
-    # ── Helpers ──────────────────────────────────────────────────────────────
-
-    def add_slide():
-        return prs.slides.add_slide(blank_layout)
-
-    def purple_bg(slide):
-        _set_slide_background(slide, SNAPLOGIC_PURPLE)
-
-    def light_bg(slide):
-        _set_slide_background(slide, LIGHT_GRAY)
-
-    def add_rect(slide, left, top, width, height, fill_color, line_color=None):
-        from pptx.util import Emu
-        shape = slide.shapes.add_shape(
-            1,  # MSO_SHAPE_TYPE.RECTANGLE
-            left, top, width, height,
-        )
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = fill_color
-        if line_color:
-            shape.line.color.rgb = line_color
-        else:
-            shape.line.fill.background()
-        return shape
-
-    def header_bar(slide, text, bg=SNAPLOGIC_DARK, fg=WHITE, font_size=28):
-        add_rect(slide, 0, 0, W, Inches(0.85), bg)
-        _add_text_box(slide, text,
-                      Inches(0.4), Inches(0.1),
-                      W - Inches(0.8), Inches(0.75),
-                      font_size, bold=True, color=fg, align=PP_ALIGN.LEFT)
-
-    def footer(slide, label="SnapLogic Confidential"):
-        add_rect(slide, 0, H - Inches(0.35), W, Inches(0.35), SNAPLOGIC_DARK)
-        _add_text_box(slide, label,
-                      Inches(0.4), H - Inches(0.33),
-                      W - Inches(0.8), Inches(0.3),
-                      9, color=RGBColor(0xAA, 0xAA, 0xAA), align=PP_ALIGN.LEFT)
-        _add_text_box(slide, "snaplogic.com",
-                      0, H - Inches(0.33),
-                      W - Inches(0.4), Inches(0.3),
-                      9, color=RGBColor(0xAA, 0xAA, 0xAA), align=PP_ALIGN.RIGHT)
-
-    # ── 1. Title Slide ───────────────────────────────────────────────────────
-    slide = add_slide()
-    purple_bg(slide)
-    # Accent bar on left
-    add_rect(slide, 0, 0, Inches(0.18), H, ACCENT_BLUE)
-    # Logo area placeholder
-    _add_text_box(slide, "SNAPLOGIC",
-                  Inches(0.4), Inches(0.3),
-                  Inches(4), Inches(0.5),
-                  16, bold=True, color=WHITE)
-    # Title
-    d = content["title_slide"]
-    _add_text_box(slide, d["title"],
-                  Inches(0.4), Inches(1.8),
-                  W - Inches(1.0), Inches(1.8),
-                  38, bold=True, color=WHITE, align=PP_ALIGN.LEFT)
-    _add_text_box(slide, d["subtitle"],
-                  Inches(0.4), Inches(3.8),
-                  W - Inches(1.0), Inches(0.9),
-                  20, color=RGBColor(0xCC, 0xCC, 0xFF), align=PP_ALIGN.LEFT)
-    _add_text_box(slide, "Prepared exclusively for " + customer_name,
-                  Inches(0.4), Inches(4.9),
-                  W - Inches(1.0), Inches(0.5),
-                  13, color=RGBColor(0xBB, 0xBB, 0xDD))
-    footer(slide, "Confidential — Prepared for " + customer_name)
-
-    # ── 2. Agenda Slide ──────────────────────────────────────────────────────
-    slide = add_slide()
-    light_bg(slide)
-    header_bar(slide, content["agenda_slide"]["title"])
-    footer(slide)
-    add_rect(slide, Inches(0.4), Inches(1.0), Inches(0.08), H - Inches(1.5), ACCENT_BLUE)
-
-    txBox = slide.shapes.add_textbox(Inches(0.7), Inches(1.1), W - Inches(1.2), H - Inches(1.8))
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    first = True
-    for item in content["agenda_slide"]["items"]:
-        if first:
-            p = tf.paragraphs[0]
-            first = False
-        else:
-            p = tf.add_paragraph()
-        p.space_before = Pt(6)
-        run = p.add_run()
-        run.text = f"▸  {item}"
-        run.font.size = Pt(18)
-        run.font.color.rgb = SNAPLOGIC_DARK
-
-    # ── 3. Customer Challenges Slide ─────────────────────────────────────────
-    slide = add_slide()
-    light_bg(slide)
-    d = content["customer_challenges_slide"]
-    header_bar(slide, d["title"])
-    footer(slide)
-
-    cols = len(d["challenges"])
-    col_w = (W - Inches(0.8)) / cols
-    for i, ch in enumerate(d["challenges"]):
-        x = Inches(0.4) + i * col_w
-        card = add_rect(slide, x + Inches(0.1), Inches(1.1),
-                        col_w - Inches(0.2), H - Inches(1.9), SNAPLOGIC_PURPLE)
-        _add_text_box(slide, ch["heading"],
-                      x + Inches(0.25), Inches(1.25),
-                      col_w - Inches(0.5), Inches(0.7),
-                      15, bold=True, color=WHITE)
-        _add_text_box(slide, ch["detail"],
-                      x + Inches(0.25), Inches(2.1),
-                      col_w - Inches(0.5), H - Inches(3.2),
-                      13, color=RGBColor(0xDD, 0xDD, 0xFF))
-
-    # ── 4. SnapLogic Overview Slide ──────────────────────────────────────────
-    slide = add_slide()
-    purple_bg(slide)
-    d = content["snaplogic_overview_slide"]
-    header_bar(slide, d["title"], bg=SNAPLOGIC_DARK)
-    footer(slide)
-
-    _add_text_box(slide, d["tagline"],
-                  Inches(0.4), Inches(1.0),
-                  W - Inches(0.8), Inches(0.6),
-                  16, color=RGBColor(0xCC, 0xCC, 0xFF), align=PP_ALIGN.LEFT)
-
-    for i, pt in enumerate(d["points"]):
-        y = Inches(1.9) + i * Inches(1.5)
-        add_rect(slide, Inches(0.4), y, Inches(0.06), Inches(1.1), ACCENT_BLUE)
-        _add_text_box(slide, pt["heading"],
-                      Inches(0.65), y,
-                      W - Inches(1.1), Inches(0.45),
-                      15, bold=True, color=WHITE)
-        _add_text_box(slide, pt["detail"],
-                      Inches(0.65), y + Inches(0.42),
-                      W - Inches(1.1), Inches(0.6),
-                      13, color=RGBColor(0xCC, 0xCC, 0xFF))
-
-    # ── 5. Solution Slides ───────────────────────────────────────────────────
-    for sol in content.get("solution_slides", []):
-        slide = add_slide()
-        light_bg(slide)
-        header_bar(slide, sol["title"])
-        footer(slide)
-
-        # Value prop banner
-        add_rect(slide, Inches(0.4), Inches(1.05), W - Inches(0.8), Inches(0.55),
-                 ACCENT_BLUE)
-        _add_text_box(slide, sol["value_prop"],
-                      Inches(0.55), Inches(1.08),
-                      W - Inches(1.1), Inches(0.5),
-                      13, bold=True, color=WHITE)
-
-        # Capabilities
-        _add_text_box(slide, "Key Capabilities",
-                      Inches(0.4), Inches(1.8),
-                      Inches(5.5), Inches(0.4),
-                      14, bold=True, color=SNAPLOGIC_DARK)
-        txBox = slide.shapes.add_textbox(Inches(0.4), Inches(2.25), Inches(5.5), Inches(3.5))
-        tf = txBox.text_frame
-        tf.word_wrap = True
-        first = True
-        for cap in sol.get("capabilities", []):
-            if first:
-                p = tf.paragraphs[0]
-                first = False
-            else:
-                p = tf.add_paragraph()
-            p.space_before = Pt(4)
-            run = p.add_run()
-            run.text = f"✓  {cap}"
-            run.font.size = Pt(14)
-            run.font.color.rgb = SNAPLOGIC_DARK
-
-        # Outcome box
-        add_rect(slide, Inches(6.2), Inches(1.8), Inches(6.7), Inches(4.0), SNAPLOGIC_PURPLE)
-        _add_text_box(slide, "Customer Outcome",
-                      Inches(6.4), Inches(1.95),
-                      Inches(6.3), Inches(0.4),
-                      13, bold=True, color=WHITE)
-        _add_text_box(slide, sol["customer_outcome"],
-                      Inches(6.4), Inches(2.5),
-                      Inches(6.3), Inches(3.0),
-                      14, color=RGBColor(0xDD, 0xDD, 0xFF))
-
-    # ── 6. ROI / Business Impact Slide ──────────────────────────────────────
-    slide = add_slide()
-    purple_bg(slide)
-    d = content["roi_slide"]
-    header_bar(slide, d["title"], bg=SNAPLOGIC_DARK)
-    footer(slide)
-
-    metrics = d.get("metrics", [])
-    col_count = len(metrics)
-    col_w = (W - Inches(0.8)) / col_count if col_count else W
-    for i, m in enumerate(metrics):
-        x = Inches(0.4) + i * col_w
-        add_rect(slide, x + Inches(0.1), Inches(1.1),
-                 col_w - Inches(0.2), Inches(2.8), SNAPLOGIC_DARK)
-        _add_text_box(slide, m["stat"],
-                      x + Inches(0.2), Inches(1.3),
-                      col_w - Inches(0.4), Inches(1.0),
-                      32, bold=True, color=ACCENT_BLUE, align=PP_ALIGN.CENTER)
-        _add_text_box(slide, m["description"],
-                      x + Inches(0.2), Inches(2.4),
-                      col_w - Inches(0.4), Inches(1.2),
-                      13, color=WHITE, align=PP_ALIGN.CENTER)
-
-    _add_text_box(slide, d.get("summary", ""),
-                  Inches(0.4), Inches(4.2),
-                  W - Inches(0.8), Inches(1.2),
-                  14, color=RGBColor(0xCC, 0xCC, 0xFF), align=PP_ALIGN.CENTER)
-
-    # ── 7. Next Steps Slide ──────────────────────────────────────────────────
-    slide = add_slide()
-    light_bg(slide)
-    d = content["next_steps_slide"]
-    header_bar(slide, d["title"])
-    footer(slide)
-
-    steps = d.get("steps", [])
-    step_h = (H - Inches(2.2)) / max(len(steps), 1)
-    for i, s in enumerate(steps):
-        y = Inches(1.1) + i * step_h
-        # Number circle
-        add_rect(slide, Inches(0.4), y + Inches(0.1),
-                 Inches(0.55), Inches(0.55), SNAPLOGIC_PURPLE)
-        _add_text_box(slide, str(i + 1),
-                      Inches(0.4), y + Inches(0.05),
-                      Inches(0.55), Inches(0.55),
-                      16, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-        # Action
-        _add_text_box(slide, s["action"],
-                      Inches(1.1), y + Inches(0.05),
-                      Inches(8.5), Inches(0.45),
-                      15, bold=True, color=SNAPLOGIC_DARK)
-        # Timeline badge
-        add_rect(slide, Inches(10.0), y + Inches(0.1),
-                 Inches(2.9), Inches(0.4), ACCENT_BLUE)
-        _add_text_box(slide, s["timeline"],
-                      Inches(10.0), y + Inches(0.08),
-                      Inches(2.9), Inches(0.4),
-                      12, color=WHITE, align=PP_ALIGN.CENTER)
-
-    # ── 8. Closing Slide ─────────────────────────────────────────────────────
-    slide = add_slide()
-    purple_bg(slide)
-    add_rect(slide, 0, 0, Inches(0.18), H, ACCENT_BLUE)
-    d = content["closing_slide"]
-    _add_text_box(slide, "SNAPLOGIC",
-                  Inches(0.4), Inches(0.3),
-                  Inches(4), Inches(0.5),
-                  16, bold=True, color=WHITE)
-    _add_text_box(slide, d["title"],
-                  Inches(0.4), Inches(1.6),
-                  W - Inches(1.0), Inches(1.4),
-                  36, bold=True, color=WHITE)
-    _add_text_box(slide, d["message"],
-                  Inches(0.4), Inches(3.2),
-                  W - Inches(1.0), Inches(1.4),
-                  17, color=RGBColor(0xCC, 0xCC, 0xFF))
-    _add_text_box(slide, d["contact_prompt"],
-                  Inches(0.4), Inches(4.8),
-                  W - Inches(1.0), Inches(0.5),
-                  14, bold=True, color=ACCENT_BLUE)
-    footer(slide, "Confidential — Prepared for " + customer_name)
-
-    # ── Serialize ─────────────────────────────────────────────────────────────
-    buf = io.BytesIO()
-    prs.save(buf)
-    buf.seek(0)
-    return buf.read()
-
-
-# -----------------------------
-# UI
-# -----------------------------
-st.title("📊 Deck Builder")
-st.markdown("Generate a customer-ready SnapLogic PowerPoint presentation in seconds.")
-st.divider()
-
-col_form, col_preview = st.columns([1, 1], gap="large")
-
-with col_form:
-    st.subheader("Customer Details")
-    customer_name = st.text_input(
-        "Customer / Prospect Name *",
-        placeholder="e.g. Acme Corporation",
+    # Strip markdown fences if present
+    if raw.startswith('```'):
+        raw = raw.split('\n', 1)[1]
+        raw = raw.rsplit('```', 1)[0]
+    
+    slide_data = json.loads(raw)
+    
+    # Write the JS script
+    js_code = PPTX_TEMPLATE.format(data=json.dumps(slide_data))
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+        f.write(js_code)
+        js_path = f.name
+    
+    result = subprocess.run(
+        ['node', js_path],
+        capture_output=True, text=True, timeout=60
     )
-    industry = st.selectbox("Industry *", INDUSTRIES)
-    pain_points = st.text_area(
-        "Key Pain Points / Challenges *",
-        placeholder=(
-            "e.g.\n"
-            "- Manual, error-prone data processes across 12 systems\n"
-            "- No real-time visibility into inventory levels\n"
-            "- IT backlog is 6+ months for any integration work"
-        ),
-        height=160,
-    )
-    selected_solutions = st.multiselect(
-        "Relevant SnapLogic Solutions *",
-        SNAPLOGIC_SOLUTIONS,
-        placeholder="Select one or more solutions...",
-    )
-    additional_context = st.text_area(
-        "Additional Context (optional)",
-        placeholder=(
-            "e.g. They're currently using MuleSoft and looking to switch. "
-            "Meeting is with the CTO and VP of Engineering."
-        ),
-        height=100,
+    
+    os.unlink(js_path)
+    
+    if result.returncode != 0:
+        return jsonify({'error': result.stderr}), 500
+    
+    return send_file(
+        '/tmp/snaplogic_deck.pptx',
+        as_attachment=True,
+        download_name='SnapLogic_Pitch_Deck.pptx',
+        mimetype='application/vnd.openxmlformats-officedocument.presentationml.presentation'
     )
 
-    st.divider()
-    generate_btn = st.button(
-        "Generate Presentation",
-        type="primary",
-        use_container_width=True,
-        disabled=not (customer_name and pain_points and selected_solutions),
-    )
-
-with col_preview:
-    st.subheader("What You'll Get")
-    st.markdown("""
-A branded, customer-ready `.pptx` with the following slides:
-
-| # | Slide |
-|---|-------|
-| 1 | **Title** — Customer-specific cover |
-| 2 | **Agenda** — Meeting roadmap |
-| 3 | **Customer Challenges** — Their pain points framed professionally |
-| 4 | **Why SnapLogic** — Platform overview & differentiation |
-| 5+ | **Solution Deep-Dives** — One slide per selected solution |
-| N-2 | **Business Impact** — ROI metrics tailored to the industry |
-| N-1 | **Next Steps** — Actionable follow-up with timelines |
-| N | **Closing** — Call to action |
-
-All content is generated by Claude and tailored to the customer's industry and challenges.
-""")
-    st.info(
-        "Tip: Be specific with pain points — the more detail you provide, "
-        "the more tailored the deck.",
-        icon="💡",
-    )
-
-    if "last_generated" in st.session_state:
-        st.divider()
-        st.success("Presentation ready! Download below.", icon="✅")
-        st.download_button(
-            label="Download PowerPoint (.pptx)",
-            data=st.session_state["last_generated"]["bytes"],
-            file_name=st.session_state["last_generated"]["filename"],
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            use_container_width=True,
-            type="primary",
-        )
-
-# -----------------------------
-# Generation flow
-# -----------------------------
-if generate_btn:
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        st.error(
-            "ANTHROPIC_API_KEY is not set. Add it to your .env file or environment variables.",
-            icon="🔑",
-        )
-        st.stop()
-
-    with st.status("Building your presentation…", expanded=True) as status:
-        try:
-            st.write("Generating slide content with Claude...")
-            slide_content = generate_slide_content(
-                customer_name=customer_name,
-                industry=industry,
-                pain_points=pain_points,
-                solutions=selected_solutions,
-                additional_context=additional_context,
-            )
-
-            st.write("Building PowerPoint file...")
-            pptx_bytes = build_presentation(slide_content, customer_name)
-
-            safe_name = "".join(c if c.isalnum() or c in (" ", "-", "_") else "" for c in customer_name).strip()
-            filename = f"SnapLogic_{safe_name}_Presentation.pptx"
-
-            st.session_state["last_generated"] = {
-                "bytes": pptx_bytes,
-                "filename": filename,
-            }
-
-            status.update(label="Presentation ready!", state="complete")
-
-        except json.JSONDecodeError as e:
-            status.update(label="Failed", state="error")
-            st.error(f"Claude returned unexpected content. Please try again. ({e})", icon="❌")
-            st.stop()
-        except anthropic.AuthenticationError:
-            status.update(label="Failed", state="error")
-            st.error("Invalid ANTHROPIC_API_KEY. Check your .env file.", icon="🔑")
-            st.stop()
-        except Exception as e:
-            status.update(label="Failed", state="error")
-            st.error(f"Something went wrong: {e}", icon="❌")
-            st.stop()
-
-    st.rerun()
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
