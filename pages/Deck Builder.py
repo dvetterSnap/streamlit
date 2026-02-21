@@ -60,10 +60,10 @@ st.markdown("""
   <div class="logo-icon">SL</div>
   <div>
     <div class="logo-title">SnapLogic Pitch Deck Generator</div>
-    <div class="logo-sub">Fill in the details → get a prompt → paste into Claude.ai → download your PPTX</div>
+    <div class="logo-sub">Fill in details → copy prompt → paste into Claude.ai → download PPTX</div>
   </div>
 </div>
-<div class="badge">✦ No API Key Required</div>
+<div class="badge">✦ Powered by Claude.ai</div>
 """, unsafe_allow_html=True)
 
 customer = st.text_area(
@@ -90,7 +90,7 @@ slide_num = int(slide_count.split()[0])
 tone_val  = tone.lower()
 
 def build_prompt(customer, snaplogic, slide_count, tone):
-    return f"""Please create a SnapLogic pitch deck and generate a downloadable .pptx file.
+    return f"""Please create a SnapLogic pitch deck PowerPoint file for me and provide it as a downloadable .pptx file.
 
 ---
 CUSTOMER INFORMATION:
@@ -101,19 +101,12 @@ HOW SNAPLOGIC CAN HELP:
 ---
 
 REQUIREMENTS:
-- Create exactly {slide_count} slides with a {tone} tone
-- Use pptxgenjs (Node.js) to generate the PPTX file
-- Professional dark navy/cyan color palette: navy #0A1628, blue #0A4FA8, cyan #00D4FF
-- Make ALL content 100% specific to this customer — no generic filler text
-- Include these slide types (scale for count): Title, Customer Challenges, SnapLogic Solution, Business Value/ROI Metrics (with 3 large bold stats like "80%", "3x", "40h saved"), Platform Capabilities, Use Cases, Why SnapLogic, Next Steps with CTA
-- Every slide needs a colored header bar, shapes, and visual layout — no plain text-only slides
-- Title slide: geometric accent shapes, company name prominent
-- Value slide: 3 large metric cards with big numbers
-- Next Steps slide: numbered action cards + colored CTA footer bar
-- Output a COMPLETE, fully runnable Node.js script (no placeholders, no TODOs)
-- Save the output as "SnapLogic_Pitch_Deck.pptx"
-
-Generate the complete script now so I can run it with: node deck.js"""
+- {slide_count} slides, {tone} tone
+- Professional dark navy/cyan design: navy #0A1628, blue #0A4FA8, cyan #00D4FF
+- All content must be 100% specific to this customer — no generic filler
+- Slide types: Title, Customer Challenges, SnapLogic Solution, Business Value (3 large bold ROI stats e.g. "80%", "3x", "40h saved"), Platform Capabilities, Use Cases, Why SnapLogic, Next Steps with CTA
+- Every slide needs colored header bars, shapes, and visual layout — no plain text slides
+- Please generate the .pptx file and provide it as a download"""
 
 if st.button("✦ Generate My Claude Prompt"):
     if not customer.strip() or not snaplogic.strip():
@@ -123,18 +116,17 @@ if st.button("✦ Generate My Claude Prompt"):
 
 if "prompt" in st.session_state:
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown("### 📋 Copy this prompt → paste into Claude.ai")
+    st.markdown("### 📋 Copy this → paste into Claude.ai → get your PPTX")
     st.code(st.session_state["prompt"], language=None)
 
     st.markdown("""
     <div class="next-steps">
       <div style="color:#00d4ff;font-weight:700;font-size:12px;letter-spacing:0.5px;margin-bottom:10px;">💡 NEXT STEPS</div>
-      <div style="color:rgba(255,255,255,0.65);font-size:13px;line-height:2;">
-        1️⃣ &nbsp;Copy the prompt above<br>
-        2️⃣ &nbsp;Open <strong style="color:white">claude.ai</strong> → paste & send<br>
-        3️⃣ &nbsp;Claude generates a complete Node.js script<br>
-        4️⃣ &nbsp;Save it as <code style="color:#00d4ff">deck.js</code> → run <code style="color:#00d4ff">node deck.js</code><br>
-        5️⃣ &nbsp;Open <code style="color:#00d4ff">SnapLogic_Pitch_Deck.pptx</code> 🎉
+      <div style="color:rgba(255,255,255,0.65);font-size:13px;line-height:2.2;">
+        1️⃣ &nbsp;Click <strong style="color:white">Copy</strong> on the prompt above<br>
+        2️⃣ &nbsp;Open <strong style="color:white">claude.ai</strong> in a new tab<br>
+        3️⃣ &nbsp;Paste &amp; send — Claude builds your deck<br>
+        4️⃣ &nbsp;Download the <code style="color:#00d4ff">.pptx</code> file directly from Claude 🎉
       </div>
     </div>
     """, unsafe_allow_html=True)
